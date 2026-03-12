@@ -353,403 +353,172 @@ This date range controls:
 
 ---
 
-## Step 2 — Extract current films from Veezi
-Open the Veezi sessions page and extract all films in the date range.
+## Step 2 — Extract & rank films from Veezi
+Open the Veezi sessions page. Extract all films in the date range.
 
-Use this as the truth source for what’s showing.
+Output:
+- full list of titles showing in range, rough session counts, purchase URLs
 
-Output should include:
-- titles showing in range
-- rough prominence / session counts
-- purchase URLs for the current week where useful
+Rank films by: new release status, session count, marketability.
+This ranked list feeds directly into Step 3. Do NOT include films outside the requested date range.
 
-Use the extracted list to split films into:
-- **featured films**
-- **also showing**
+### ⛔ HARD RULE — EXACTLY 4 FEATURED FILMS
+The main featured section MUST show **exactly 4 films**. Not 3. Not 5.
+- The intro copy block MUST also list exactly those same 4 films.
+- Override only if the user explicitly asks.
 
-### Recommended selection logic
-Feature films that are:
-- new
-- important
-- heavily programmed
-- marketable in subject line / top copy
+### Layout rule — extra films
+If more films need to be shown, duplicate featured blocks **above the Free Parking block** only.
+- Do NOT repurpose or overwrite anything below Free Parking.
 
-Use the rest in “also showing” or secondary promo sections.
+### Footer preservation rule
+Everything from the **Free Parking** block downward stays untouched by default.
+- Do not edit, insert films into, or adjust that area unless the user explicitly asks.
 
-### ⛔ HARD RULE — EXACTLY 4 FEATURED FILMS IN THE MAIN BODY
-
-The main featured section MUST show **exactly 4 films**. Not 3. Not 5. Not all films from Veezi.
-
-- Do NOT expand the featured section beyond 4 films even if Veezi shows 9 films that week.
-- Do NOT shrink below 4 unless there are genuinely fewer than 4 films available.
-- The intro copy block MUST also list exactly those same 4 films — no more, no less.
-- If the user explicitly overrides this count in the prompt, follow the prompt. Otherwise this rule is absolute.
-
-### ⛔ HARD RULE — Film selection process (choose 4 from all available)
-
-Veezi will often show more than 4 films in a given week. The process to select the 4 featured films is:
-
-1. Pull the full film list from Veezi for the exact date range.
-2. Rank films by: new release status, session count, marketability.
-3. Starting from the top of the ranked list, attempt to find a **good landscape banner** on MovieXchange for each film.
-4. **If a film has no good landscape banner on MovieXchange → skip that film. Move to the next film on the ranked list.**
-5. Continue down the ranked list until you have exactly 4 films that each have a confirmed good landscape banner.
-6. Those 4 films are the featured films for this email.
-
-Example:
-- Veezi has 9 films: A, B, C, D, E, F, G, H, I (ranked by priority)
-- A has a good landscape banner → ✅ include
-- B has a good landscape banner → ✅ include
-- C has NO good landscape banner → ❌ skip C
-- D has a good landscape banner → ✅ include
-- E has a good landscape banner → ✅ include
-- **Result: featured films are A, B, D, E** (4 films, all with confirmed landscape banners)
-
-Do NOT include C just because it ranked 3rd. Do NOT include a portrait poster for C as a workaround.
-Do NOT include films that are **outside** the requested date range.
-
-### Critical layout rule — where to add extra films
-If the weekly lineup has more films than the original featured-film area can hold:
-- duplicate the main featured film block(s)
-- duplicate the matching date/session block(s)
-- add those extra blocks **above the Free Parking block**
-
-Do **not** solve this by overwriting or repurposing the blocks below the Free Parking section unless the user explicitly asks for that.
-
-In particular, do not casually replace:
-- the promo/event blocks below Free Parking
-- lower campaign promos
-- other existing non-film marketing sections
-
-Default rule:
-- extra films belong in duplicated featured-film sections above Free Parking
-- lower promo/ad sections stay unchanged unless explicitly requested
-
-### Footer preservation rule — everything below Free Parking stays untouched by default
-Treat the section beginning at the **Free Parking** block and everything below it as preserved template content.
-
-Default behavior:
-- do not edit that area when updating weekly film content
-- do not insert film promos into that area
-- do not reuse lower/footer sections as overflow space for film blocks
-- if more film capacity is needed, add or duplicate film blocks **above** Free Parking instead
-- keep everything below Free Parking the same as the preserved reference footer from **Weekly mailer February 24** unless the user explicitly asks otherwise
-
-Only change anything from Free Parking downward if the user explicitly asks for those lower sections to be modified.
-
-### Hard footer rule
-Do **not** touch the footer content below the Free Parking section for normal weekly mailer updates.
-
-For normal runs:
-- the footer below Free Parking should stay the same as **Weekly mailer February 24**
-- do not rewrite it
-- do not swap promos into it
-- do not use it to fit extra films
-- do not adjust its text, schedule, images, or links unless the user explicitly asks
 
 ---
 
-## Step 3 — Duplicate the master template into a new working file
+## Step 3 — Duplicate the master template
 
-### ⛔ HARD RULE — Do NOT edit the master template file directly
-
-The master template is: **`weekly-mailer-february-24-mailchimp.html`**
-
-This file MUST remain untouched. It is the design source for every future weekly campaign.
-
-**Mandatory steps:**
-1. Locate `weekly-mailer-february-24-mailchimp.html` in the local workspace.
-2. **Copy it** into a new file named for the target week, for example:
-   - `weekly-mailer-mar-9-15.html`
-   - `weekly-mailer-apr-1-7.html`
-3. **All editing goes into the new copy only.** The original is never touched.
-4. Use the new copy as the working file for all subsequent steps in this workflow.
+⛔ **NEVER edit `weekly-mailer-february-24-mailchimp.html` directly.**
 
 ```bash
-# Example duplication command
 cp weekly-mailer-february-24-mailchimp.html weekly-mailer-mar-9-15.html
 ```
 
-Important:
-- `weekly-mailer-february-24-mailchimp.html` is the **design/structure source** — not the schedule source
-- It is **not** the Mailchimp campaign itself — it is the local HTML base you edit before uploading
-- Never upload changes back into `weekly-mailer-february-24-mailchimp.html`
-- If the file is accidentally modified, restore it from git before continuing
+- Name the new file for the target week (e.g. `weekly-mailer-apr-1-7.html`)
+- All editing goes into the new copy only
+- If the master is accidentally modified, restore from git before continuing
+
+Then immediately inspect the new file to identify editable vs. locked blocks:
+
+| Editable | Do NOT touch |
+|---|---|
+| Intro summary paragraph | Header |
+| Featured film sections | Footer |
+| Event/ad promo sections | Phone/site/footer rows |
+| Week/date text | Template shell tables |
+| Book now / trailer URLs | Branding assets |
 
 ---
 
-## Step 4 — Inspect the source HTML structure
-Before editing, identify the blocks that are allowed to change.
+## Step 4 — MovieXchange pass: select films + gather content + prepare banners
 
-Typical editable areas:
-- intro summary paragraph
-- repeating featured-film sections
-- event/ad promo sections
-- week/date text
-- book now / trailer URLs
+> **One continuous pass per film.** Do not make separate trips to MovieXchange.
 
-Do **not** casually replace or remove:
-- header
-- footer
-- phone/site/footer rows
-- template shell tables
-- branding assets
+Work down the Veezi ranked list. For each candidate film:
 
----
+**4a — Banner check (follow the 3-pass tab strategy in CANONICAL FEATURED IMAGE RULE)**
+1. Log into MovieXchange, search the exact film title
+2. Run: Social Media tab → Web Materials tab → All Media tab (in order)
+3. ❌ No good landscape banner → skip this film, move to the next ranked film
+4. ✅ Good banner found → continue to 4b **without leaving the page**
 
-## Step 5 — Define what each featured film block needs
-Each main featured-film block should include:
-- 1 main poster
-- 1 trailer link/button
-- title
-- rating/note line
-- short synopsis
-- link target
+**4b — Gather all film content (while on the same MovieXchange page)**
+- title, rating, rating notes, runtime
+- short marketing synopsis
+- trailer URL (prefer Deluxe Cinemas site; fall back to MovieXchange)
 
-Do not overfill blocks with unnecessary data.
-Keep the format close to the proven weekly template.
+Rating line format: `PG Coarse language | 96 mins | No Comps`
 
----
-
-## Step 6 — Get film content from MovieXchange
-For each featured film, gather:
-- title
-- rating
-- rating notes
-- runtime
-- short synopsis
-- trailer URL
-- release/poster reference
-
-Preferred output for each film:
-- one short, clean marketing synopsis
-- one rating line like:
-  - `PG Coarse language | 96 mins | No Comps`
-  - `M Offensive language & sexual references | 113 mins | No Comps`
-
-If needed, lightly normalize punctuation and spacing for consistency with the template.
-
----
-
-## Step 7 — Prepare banners correctly
-
-> ⚠️ See the **CANONICAL FEATURED IMAGE RULE** section above (in the MovieXchange section) for full image selection rules. The rules here only cover the resize and upload gate.
-
-For each of the 4 selected featured films:
-1. You must already have confirmed a **good landscape banner** exists on MovieXchange for this film (from the film selection step).
-2. Download the selected landscape banner file.
-3. **MANDATORY: Resize to exactly 700px wide** using an image-processing tool before uploading.
-4. Preserve aspect ratio — height scales automatically.
-5. **VERIFY** the output file is 700px wide before proceeding.
-6. Upload the resized file to Mailchimp file storage.
-7. Use the Mailchimp-hosted URL in the campaign HTML.
-
-### ⛔ HARD RESIZE GATE — Do not upload until this passes:
-
+**4c — Download, resize, upload banner**
 ```bash
 magick input.jpg -resize 700x output.jpg
-identify output.jpg   # MUST confirm 700px wide (e.g. 700x394)
+identify output.jpg   # MUST show 700px wide before proceeding
 ```
+- Upload the resized file to **Mailchimp file storage**
+- Note the Mailchimp-hosted URL — this is what goes in the HTML
 
-- Do NOT upload the original source file.
-- Do NOT use the MovieXchange or external CDN URL directly in the HTML.
-- Do NOT rely on HTML `width` attribute or CSS to display the image at 700px.
-- The file uploaded to Mailchimp MUST itself be 700px wide when inspected.
-- If `identify` does not show 700px wide → resize again before uploading.
+⛔ Do NOT upload the original source file.
+⛔ Do NOT use a MovieXchange or external CDN URL in the HTML.
+⛔ Do NOT rely on HTML `width` or CSS — the uploaded file itself must be 700px wide.
 
----
-
-## Step 8 — Update the intro summary block
-Change the intro paragraph to match the current week’s films.
-
-The intro should:
-- mention the key featured films for the current period
-- sound like the existing weekly style
-- include the target week/date range when appropriate
-
-Do not rewrite it into a completely different tone.
+Repeat 4a → 4b → 4c until **exactly 4 films** are confirmed with content + hosted banner URL.
 
 ---
 
-## Step 9 — Replace the main featured-film blocks
-Using the previous weekly template HTML as the base, replace only the film-specific content inside each featured block.
+## Step 5 — Update all HTML content in the working file
 
-For each featured slot, update:
-- poster image
-- film link
-- trailer link
-- title
-- rating/note line
-- synopsis
-- schedule/date text shown under that featured film
+With all 4 films' content and Mailchimp banner URLs ready, edit the working HTML in one pass:
 
-Keep the surrounding table structure and styling unchanged.
+**5a — Intro copy block**
+- Mention exactly the 4 featured films, current date range, weekly tone
+- Only list films actually showing in the requested date range
 
-### Critical schedule-range rule
-Any schedule/date text shown under a featured film must contain **only sessions inside the exact requested campaign date range**.
+**5b — Featured film blocks (all 4)**
+For each slot, update:
+- poster image (Mailchimp-hosted URL)
+- film link (Deluxe Cinemas film page)
+- trailer link (verified)
+- title, rating/note line, synopsis
+- schedule/date text — **only sessions within the exact requested date range**
 
-Example:
-- if the prompt says `March 20 – March 25`
-- then the schedule text under each film may show only dates/sessions within March 20 through March 25
-- do not leave older dates from the source template such as March 11–18
-- do not leave future dates outside the requested range either
+Keep surrounding table structure and styling unchanged.
 
-Before final upload:
-- scan every featured-film schedule/date block
-- remove any inherited template dates outside the requested range
-- confirm the visible schedule text matches only the requested campaign window
+**5c — Also-showing / secondary sections**
+Update to the remaining Veezi films for this period. Remove all stale prior-week titles.
 
-### Hard validation rule before final upload
-Before the campaign is considered ready, perform a strict date-range validation across the whole edited HTML.
+**5d — Date-range validation (mandatory before saving)**
+Scan the entire HTML and confirm:
+- no film appears outside the requested Veezi date range
+- no schedule/date text outside the range remains
+- no inherited template blocks from old weeks remain
+- no old booking/session links from out-of-range films remain
 
-Validation requirements:
-- no film title should appear unless that film is actually in the requested Veezi date range, unless the user explicitly asked for broader marketing copy
-- no schedule/date text should appear outside the requested date range
-- no inherited template film blocks from earlier or later weeks may remain by accident
-- no old booking/session links from out-of-range films may remain by accident
-
-If any of those checks fail:
-- do not treat the campaign as ready
-- fix the HTML first
-- then re-check the saved Mailchimp content again after upload
+Fix any failures before proceeding.
 
 ---
 
-## Step 10 — Update also-showing / secondary sections
-If the template includes:
-- also showing text
-- lower-priority film mentions
-- extra promo rows
+## Step 6 — Push to Mailchimp draft
 
-Update them to reflect the actual Veezi schedule for the target period.
+**6a — Create or update the working draft**
+- Use **one working campaign draft** — update in place, avoid creating extras
+- Use a test audience (e.g. `test julian`) until approval
+- Set: title, subject line, preview text, from name, reply-to → keep as **draft**
 
-Do not leave stale titles from the prior week.
-
----
-
-## Step 11 — Create or update the Mailchimp draft
-Preferred operating mode:
-- use **one working campaign draft** and keep updating it
-- avoid creating unnecessary extra test campaigns
-
-However, when safety matters:
-- use a test audience like `test julian`
-- keep the real audience untouched until approval
-
-Set campaign settings:
-- title
-- subject line
-- preview text
-- from name
-- reply-to
-- keep as draft
-
----
-
-## Step 12 — Upload the preserved-template HTML to Mailchimp
-Upload the edited HTML into the working Mailchimp draft.
-
-After upload, verify immediately that the saved HTML still contains:
+**6b — Upload HTML and verify immediately**
+After uploading, confirm the saved HTML still contains:
 - header/footer markers
 - phone/footer links
-- updated week/date text
-- updated featured films
-- updated event/ad blocks
+- updated week/date text and featured films
 
-This verification step is mandatory.
+If Mailchimp regenerated any content → fix and re-upload.
 
 ---
 
-## Step 13 — QA checklist
-Before handoff, check all of the following:
+## Step 7 — QA checklist + test send
 
-### Template preservation
-- header still present
-- footer still present
-- phone/site/contact/footer blocks still present
-- original design structure preserved
+**QA checklist:**
 
-### Film correctness
-- featured film list matches current Veezi week
-- also showing list matches current Veezi week
-- no stale previous-week titles remain
-- no stale old promo text remains
+| Area | Check |
+|---|---|
+| **Template** | Header, footer, phone/contact blocks present; design structure intact |
+| **Films** | Featured + also-showing match Veezi; no stale titles from prior week |
+| **Assets** | Posters Mailchimp-hosted, files intrinsically 700px wide, trailer/BOOK NOW links correct |
+| **Settings** | Subject line, preview text, title updated; still draft; correct audience |
 
-### Asset correctness
-- posters are Mailchimp-hosted
-- posters display correctly at 700px width
-- uploaded poster files themselves are intrinsically 700px wide when inspected or downloaded
-- trailer links match the correct films
-- BOOK NOW links point to current Veezi sessions where intended
-
-### Campaign settings
-- subject line updated
-- preview text updated
-- title updated
-- test recipient is correct
-- still in `save` / draft status
-- correct audience choice for the current stage
+**Test send (immediately after QA passes):**
+- Send test email to `tester` (default: `tungphamkindle@gmail.com`)
+- Use prompt-specified tester if provided
+- Actually trigger the Mailchimp **test send** action — do not stop at draft
+- Confirm the test-send API call succeeded
+- Keep campaign as **draft** after test send
 
 ---
 
-## Step 14 — Send test email to tester
-After the draft is prepared and verified, send a test email to the configured `tester` value.
-
-Current default tester:
-- `tungphamkindle@gmail.com`
-
-Rules:
-- treat `tester` as a variable
-- if the prompt specifies a different tester, use that instead
-- if not overridden, use the current default tester
-- send the test only after links, posters, and schedule text have been checked
-- actually trigger the Mailchimp **test send** action; do not stop at preparing the draft
-- confirm the test-send API/action succeeded
-- keep the campaign as a draft after the test send
-
----
-
-## Step 15 — Approval handoff
-When done, report back with:
-- working campaign id
-- campaign title
-- whether it was updated in place or created fresh
+## Step 8 — Approval handoff
+Report back with:
+- campaign ID and title
+- updated in place or created fresh
 - which audience is attached
-- whether it is still draft-only
+- draft-only status confirmed
 - any known unresolved items
 
 ---
 
-## Recommended Default for Future Runs
-Use this default pattern unless the user asks otherwise:
-
-1. Determine week from Veezi
-2. Pull current film list from Veezi
-3. Use previous successful weekly Mailchimp HTML as the design base
-4. Pull official film content from MovieXchange
-5. Upload posters into Mailchimp
-6. Replace only film/schedule-related content
-7. Update the same working campaign draft in Mailchimp
-8. Verify saved HTML
-9. Send a test email to `tester`
-10. Leave as draft
-
----
-
-## Current Known Good Pattern
-A better implementation pattern was established during this session:
-- preserve-template rebuild based on `Weekly mailer February 24`
-- update only the content blocks
-- update the same working Mailchimp campaign instead of making many new ones
-- verify saved HTML after each major section update
-
----
-
 ## File/Artifact Conventions
-Suggested local workspace files:
-- `weekly-mailer-feb-24-sent.html` — preserved source template
-- `weekly-mailer-mar-9-15-preserved-template.html` — edited main weekly template for target week
-- `weekly-mailer-mar-9-15-preserved-template-events-updated.html` — after event/ad updates
+- `weekly-mailer-february-24-mailchimp.html` — **read-only master template** (never edit)
+- `weekly-mailer-mar-9-15.html` — working copy for target week
 - `weekly-email-mailchimp.md` — this workflow doc
 
 ---
