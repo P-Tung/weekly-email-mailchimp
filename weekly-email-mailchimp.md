@@ -615,24 +615,7 @@ If any of those checks fail:
 
 ---
 
-## Step 10 — EVENT/AD sections
-### ⛔ DO NOT EDIT — leave as-is by default
-
-The yellow promo/event cards (`EVENT/AD CARD #1–5`) are **preserved template content**.
-
-**Default rule: do nothing to these blocks.**
-
-Only update them if the user **explicitly asks** to change an event or ad card.
-
-When the user does ask, update per card:
-- image (`<img src>` → Mailchimp-hosted)
-- title text
-- promo description text
-- BOOK NOW link → current Veezi purchase URL
-
----
-
-## Step 11 — Update also-showing / secondary sections
+## Step 10 — Update also-showing / secondary sections
 If the template includes:
 - also showing text
 - lower-priority film mentions
@@ -644,7 +627,7 @@ Do not leave stale titles from the prior week.
 
 ---
 
-## Step 12 — Create or update the Mailchimp draft
+## Step 11 — Create or update the Mailchimp draft
 Preferred operating mode:
 - use **one working campaign draft** and keep updating it
 - avoid creating unnecessary extra test campaigns
@@ -663,7 +646,7 @@ Set campaign settings:
 
 ---
 
-## Step 13 — Upload the preserved-template HTML to Mailchimp
+## Step 12 — Upload the preserved-template HTML to Mailchimp
 Upload the edited HTML into the working Mailchimp draft.
 
 After upload, verify immediately that the saved HTML still contains:
@@ -677,7 +660,7 @@ This verification step is mandatory.
 
 ---
 
-## Step 14 — QA checklist
+## Step 13 — QA checklist
 Before handoff, check all of the following:
 
 ### Template preservation
@@ -709,7 +692,7 @@ Before handoff, check all of the following:
 
 ---
 
-## Step 15 — Send test email to tester
+## Step 14 — Send test email to tester
 After the draft is prepared and verified, send a test email to the configured `tester` value.
 
 Current default tester:
@@ -726,7 +709,7 @@ Rules:
 
 ---
 
-## Step 16 — Approval handoff
+## Step 15 — Approval handoff
 When done, report back with:
 - working campaign id
 - campaign title
