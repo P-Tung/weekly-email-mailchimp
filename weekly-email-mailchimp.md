@@ -390,6 +390,38 @@ This is more stable than relying on external poster URLs.
 
 ## Weekly Workflow
 
+## Step 0 — Vision Self-Check (MANDATORY — do this BEFORE anything else)
+
+Before doing any work, the AI agent MUST verify it has **image recognition (vision) capability**.
+
+### How to self-check:
+
+1. Open this public test image in the browser:
+   `https://http.cat/200`
+2. Describe what you see in the image (minimum: subject, colours, any text visible).
+
+### Result:
+
+| Result | Action |
+|---|---|
+| ✅ Can describe the image content | Vision confirmed → continue to Step 1 |
+| ❌ Cannot open/view/describe the image | **HARD STOP — report to user immediately** |
+
+### ⛔ If vision check FAILS — mandatory report to user:
+
+> ❌ **Vision capability not available in this session.**
+> Banner selection requires image recognition to evaluate marketing quality of candidate images.
+> This workflow cannot complete the banner step without it.
+>
+> **Recommended actions:**
+> - Switch to a model with vision support (e.g. Gemini Pro with vision, GPT-4o, Claude 3.5 Sonnet)
+> - Then re-run this workflow from Step 0
+
+**Do NOT continue past Step 0 if vision check fails.**
+The email will be produced with no banners, which is a broken output.
+
+---
+
 ## Step 1 — Determine the target week
 Define the exact weekly date range first.
 
