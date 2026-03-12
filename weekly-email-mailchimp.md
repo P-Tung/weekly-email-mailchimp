@@ -10,6 +10,28 @@ This workflow exists because the weekly mailer has a **high-conversion template*
 - update **only** the film-related content and current-period schedule content
 - leave the campaign as a **draft** for approval
 
+---
+
+## ⛔ MASTER TEMPLATE PROTECTION RULE
+
+The file **`weekly-mailer-february-24-mailchimp.html`** is the **read-only master template**.
+
+### NEVER modify `weekly-mailer-february-24-mailchimp.html` directly.
+
+This file is the single source of truth for the email design. It must stay intact so every future weekly campaign can be built from a clean, known-good base.
+
+**Correct process — MUST follow every time:**
+1. **Read** `weekly-mailer-february-24-mailchimp.html` to understand the structure.
+2. **Duplicate** it into a new file named for the current campaign week, e.g.:
+   - `weekly-mailer-mar-9-15.html`
+   - `weekly-mailer-apr-1-7.html`
+3. **Edit only the new duplicate file** — never the original.
+4. Upload the edited duplicate to Mailchimp as the campaign HTML.
+
+**If you are about to write changes into `weekly-mailer-february-24-mailchimp.html` → STOP. Create a copy first.**
+
+---
+
 ### Email template variation
 Treat the base Mailchimp design as an **email template variation**.
 
@@ -368,20 +390,32 @@ For normal runs:
 
 ---
 
-## Step 3 — Pull the proven Mailchimp source template
-Find the prior successful weekly campaign HTML in Mailchimp.
+## Step 3 — Duplicate the master template into a new working file
 
-For example:
-- `Weekly mailer February 24`
+### ⛔ HARD RULE — Do NOT edit the master template file directly
+
+The master template is: **`weekly-mailer-february-24-mailchimp.html`**
+
+This file MUST remain untouched. It is the design source for every future weekly campaign.
+
+**Mandatory steps:**
+1. Locate `weekly-mailer-february-24-mailchimp.html` in the local workspace.
+2. **Copy it** into a new file named for the target week, for example:
+   - `weekly-mailer-mar-9-15.html`
+   - `weekly-mailer-apr-1-7.html`
+3. **All editing goes into the new copy only.** The original is never touched.
+4. Use the new copy as the working file for all subsequent steps in this workflow.
+
+```bash
+# Example duplication command
+cp weekly-mailer-february-24-mailchimp.html weekly-mailer-mar-9-15.html
+```
 
 Important:
-- the previous campaign is the **design/template source**
-- it is **not** the schedule source
-
-Save the HTML locally before editing.
-
-Example local file naming:
-- `weekly-mailer-feb-24-sent.html`
+- `weekly-mailer-february-24-mailchimp.html` is the **design/structure source** — not the schedule source
+- It is **not** the Mailchimp campaign itself — it is the local HTML base you edit before uploading
+- Never upload changes back into `weekly-mailer-february-24-mailchimp.html`
+- If the file is accidentally modified, restore it from git before continuing
 
 ---
 
