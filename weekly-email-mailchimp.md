@@ -103,53 +103,53 @@ Before MovieXchange work:
 - search the exact film title there
 - use the official MovieXchange-marked poster asset
 
-Featured image rule:
-- do not substitute random web images when MovieXchange should be the source
-- for **main featured film blocks**, use the official MovieXchange **portrait poster** asset, not a landscape/banner image
-- this is a strict rule for the default weekly workflow unless the user explicitly overrides it
-- do not use landscape hero banners in the main featured body blocks by default
-- first preference is the official theatrical/customer-facing portrait poster for the film
-- never choose any candidate whose title/description/metadata includes **still** or **stills**
-- treat any asset labeled **still** or **stills** as a random scene image, not a customer-facing poster
-- if multiple official portrait poster options exist, choose the clearest official release poster that best represents the film to customers
-- then create a new resized image file that is **actually 700px wide in pixel dimensions** before upload
-- do not rely on HTML attributes, CSS, or Mailchimp display sizing alone
-- upload that truly resized 700px-wide file to Mailchimp file manager and use the Mailchimp-hosted URL in the campaign
+## ⚠️ CANONICAL FEATURED IMAGE RULE — This overrides all other image guidance in this file
 
-Exact featured-image workflow:
+**ALL featured film images MUST be landscape banners. NOT portrait posters.**
+
+This is a hard rule. Do not pick portrait posters for the main featured film blocks.
+
+### Why landscape?
+The email layout is wide (700px). A landscape banner fills it correctly. A portrait poster is tall and narrow — it creates a very long, improperly formatted email block.
+
+### Mandatory image selection steps (MUST follow in order):
 1. Log into MovieXchange.
 2. Search the exact film title.
-3. Open the correct NZ release for the campaign period.
+3. Open the correct NZ release.
 4. Go to the release media / image assets.
-5. Look for the official **portrait poster** asset first.
-6. Exclude any candidate whose title/description/metadata contains **still** or **stills**.
-   - Treat these as random scene images, not proper customer-facing posters.
-   - Do not use them in the main featured body section.
-7. From the remaining official poster candidates, prefer one that:
-   - is clearly a theatrical or customer-facing portrait poster
-   - reads cleanly at email width
-   - clearly identifies the film to customers
-   - does not look like a random scene still or cropped banner
-8. If multiple official portrait poster files exist, choose the one that most clearly behaves like the film's main release poster.
-   - Prefer filenames/descriptions that explicitly read like poster, one-sheet, theatrical poster, key art, or official poster.
-   - Prefer the clearest title treatment over alternate art that is less recognisable.
-9. Do not jump to a landscape banner, backdrop, or random wide image unless the user explicitly asks for that override.
-10. After selecting a candidate, sanity-check the asset name/description one more time before using it.
-11. When possible, visually inspect the shortlisted MXfilm candidate images instead of relying only on filenames/roles.
-   - use visual judgment to decide which portrait poster will work best in the email
-   - prefer the image that most clearly communicates the film to a customer at a glance
-   - avoid images that are technically valid but weak, confusing, ambiguous, or not compelling in the email layout
-12. If multiple versions of the same strong poster exist, prefer a source width **nearest to but above 700px**.
-13. If no suitable official portrait poster exists, do a broader visual browse of the film's remaining MXfilm media for another official portrait-style poster treatment.
-14. Even in that broader fallback browse, still reject any asset labeled **still** or **stills**.
-15. If there is still no suitable official portrait poster, stop and flag it instead of silently substituting a landscape banner.
-16. Download the selected official asset.
-17. Use an image-processing tool to create a new output image whose intrinsic pixel width is **exactly 700px**.
-18. Preserve aspect ratio so height scales automatically.
-19. Verify the resized output file itself is 700px wide before upload.
-20. Upload that resized file to Mailchimp file manager.
-21. Replace the campaign image with the Mailchimp-hosted URL for the resized file.
-22. Do not leave Veezi thumbnail posters, random website posters, original full-size source images, still/stills assets, textless backdrops, wrong-aspect-ratio substitute art, or landscape-banner fallbacks in the main featured body blocks unless the user explicitly overrides the default rule.
+5. **Look ONLY for landscape/wide banner assets. Do NOT pick portrait posters.**
+6. **Priority order for landscape banners:**
+   - First: asset whose title/description/metadata includes **"Social Media"**
+   - Second (fallback): asset whose title/description/metadata includes **"Web Materials"**
+   - Third (last resort): any other official wide/landscape promotional asset (e.g. Backdrop) that is clearly promotional art
+7. **NEVER use any asset whose title/description/metadata includes "still" or "stills".** These are random scene captures, not promotional banners.
+8. Visually inspect the shortlisted candidates — prefer the banner that reads best at 700px wide in an email.
+9. If multiple versions of the same good banner exist, pick the one with source width nearest to but above 700px.
+
+### ⛔ STOP — If NO good landscape banner exists for a film:
+Do **NOT**:
+- use a portrait poster as a fallback
+- crop a portrait poster into a fake banner
+- use a scene still
+- use a Veezi thumbnail
+
+Instead → **skip that film entirely** and select the next best film from the full Veezi list that DOES have a good landscape banner. See the Film Selection Rule below.
+
+### Resize rule (MANDATORY — no exceptions):
+- After selecting the banner, download the source file.
+- Use an image-processing tool to resize it so the output file is **exactly 700px wide**.
+- Do NOT upload the original source file.
+- Do NOT rely on HTML `width` attribute, CSS, or Mailchimp display sizing to achieve 700px.
+- The intrinsic pixel width of the uploaded file itself MUST be 700px.
+
+```bash
+magick input.jpg -resize 700x output.jpg
+identify output.jpg  # MUST show 700px wide before proceeding
+```
+
+- Upload ONLY the resized `output.jpg` to Mailchimp file manager.
+- Use the Mailchimp-hosted URL in the campaign HTML.
+- Do NOT use MovieXchange or external CDN URLs directly in the email.
 
 Trailer link rule:
 - first try to get the trailer URL from the Deluxe Cinemas film page / site API
@@ -295,36 +295,37 @@ Feature films that are:
 
 Use the rest in “also showing” or secondary promo sections.
 
-### Coverage rule — include all and only films showing in Veezi for the target period
-Do not stop at the number of featured-film blocks that existed in the previous weekly template.
+### ⛔ HARD RULE — EXACTLY 4 FEATURED FILMS IN THE MAIN BODY
 
-If Veezi shows more films in the target date range than the old template currently has featured slots, the workflow must be expanded so all relevant films for that period are represented correctly.
+The main featured section MUST show **exactly 4 films**. Not 3. Not 5. Not all films from Veezi.
+
+- Do NOT expand the featured section beyond 4 films even if Veezi shows 9 films that week.
+- Do NOT shrink below 4 unless there are genuinely fewer than 4 films available.
+- The intro copy block MUST also list exactly those same 4 films — no more, no less.
+- If the user explicitly overrides this count in the prompt, follow the prompt. Otherwise this rule is absolute.
+
+### ⛔ HARD RULE — Film selection process (choose 4 from all available)
+
+Veezi will often show more than 4 films in a given week. The process to select the 4 featured films is:
+
+1. Pull the full film list from Veezi for the exact date range.
+2. Rank films by: new release status, session count, marketability.
+3. Starting from the top of the ranked list, attempt to find a **good landscape banner** on MovieXchange for each film.
+4. **If a film has no good landscape banner on MovieXchange → skip that film. Move to the next film on the ranked list.**
+5. Continue down the ranked list until you have exactly 4 films that each have a confirmed good landscape banner.
+6. Those 4 films are the featured films for this email.
 
 Example:
-- if the old template has 3 film blocks
-- but Veezi shows 5 films for that week
-- then the updated email must cover all 5 films
+- Veezi has 9 films: A, B, C, D, E, F, G, H, I (ranked by priority)
+- A has a good landscape banner → ✅ include
+- B has a good landscape banner → ✅ include
+- C has NO good landscape banner → ❌ skip C
+- D has a good landscape banner → ✅ include
+- E has a good landscape banner → ✅ include
+- **Result: featured films are A, B, D, E** (4 films, all with confirmed landscape banners)
 
-This means you may need to:
-- duplicate an existing film block
-- preserve the surrounding styling and layout
-- add additional film sections so the template matches the actual weekly lineup
-
-Do not leave films out just because the older campaign had fewer slots.
-Do not include films that are **outside** the requested date range just because they were present in the old template, in a nearby week, or in a broader campaign concept.
-
-### Main featured-section length rule
-To avoid overly long emails and Gmail clipping, the main featured section should show a **maximum of 4 films by default**.
-
-Meaning:
-- do not keep expanding the top featured-film area indefinitely
-- even if more than 4 films are playing in the period, cap the main featured section at 4 films by default
-- choose the top 4 films for the main section
-- do not make the intro copy block list more than those 4 featured films if the top section is capped at 4
-- if the user explicitly overrides the featured-film count in the prompt, follow the prompt instead
-- otherwise, the default rule is strict: exactly the main 4 featured films belong in the main body section
-
-Other films can still be represented elsewhere in the email structure, but the main featured block area should stay capped unless the user explicitly overrides that default.
+Do NOT include C just because it ranked 3rd. Do NOT include a portrait poster for C as a workaround.
+Do NOT include films that are **outside** the requested date range.
 
 ### Critical layout rule — where to add extra films
 If the weekly lineup has more films than the original featured-film area can hold:
@@ -437,68 +438,31 @@ If needed, lightly normalize punctuation and spacing for consistency with the te
 
 ---
 
-## Step 7 — Prepare posters correctly
-For each featured film:
-1. download the poster from MovieXchange
-2. choose a good-quality variant
-3. resize the poster image to **700px wide** using an actual image-processing/export step
-4. preserve aspect ratio
-5. confirm the exported file's intrinsic pixel dimensions are 700px wide
-6. upload that resized poster file to Mailchimp file storage
-7. use the Mailchimp-hosted URL in final campaign HTML
+## Step 7 — Prepare banners correctly
 
-### Important image rule
-The workflow requirement is:
-- **All featured film images must be 700px wide**
+> ⚠️ See the **CANONICAL FEATURED IMAGE RULE** section above (in the MovieXchange section) for full image selection rules. The rules here only cover the resize and upload gate.
 
-Practical interpretation:
-- source image may be larger
-- final image asset used in the email must be a newly exported image file whose intrinsic width is **actually 700 pixels**
-- email display width should also be 700px
-- ratio should remain intact
-- height should scale automatically from the source image
-- do not satisfy this rule with HTML width, CSS width, or Mailchimp display sizing alone
-- if someone downloads the image used in the email, that downloaded file should still be 700px wide
+For each of the 4 selected featured films:
+1. You must already have confirmed a **good landscape banner** exists on MovieXchange for this film (from the film selection step).
+2. Download the selected landscape banner file.
+3. **MANDATORY: Resize to exactly 700px wide** using an image-processing tool before uploading.
+4. Preserve aspect ratio — height scales automatically.
+5. **VERIFY** the output file is 700px wide before proceeding.
+6. Upload the resized file to Mailchimp file storage.
+7. Use the Mailchimp-hosted URL in the campaign HTML.
 
-### Featured image selection rule
-To reduce email height and avoid Gmail clipping:
-- visually inspect MovieXchange/MXfilm image options when available; do **not** rely solely on API tags or metadata
-- choose **landscape banners** instead of portrait movie posters for featured film blocks
-- highest priority: choose an **official** banner whose title/description/metadata clearly includes **"Social Media"**
-- do **not** use any asset whose title/description/metadata includes **"still"** or **"stills"**
-- within the valid candidates, prefer a landscape/wide asset that reads cleanly in email and ideally includes the film title/logo
-- if no suitable **Social Media** asset exists, fall back to **Web Materials** assets
-- when falling back to Web Materials, still avoid scene-still type assets and prefer clean title-bearing banners or other clearly promotional wides
-- if no suitable Social Media or Web Materials banner exists, check whether MXfilm has another official wide asset such as a **Backdrop** that is clearly intended promotional art and not just a random still
-- if the currently chosen image is later found to be the wrong orientation, the wrong banner, or a portrait poster used where a banner is required, go back to MXfilm and browse/select another official banner asset
-- do **not** try to rescue the wrong orientation with CSS-only sizing
-- do **not** crop a portrait poster into a fake banner unless the user explicitly asks for that
-- if multiple suitable official wide assets exist, prefer the one that will read best at 700px wide in email
-- when choosing among multiple versions of the same good banner, pick the source width nearest to but above 700px when available, then resize to **700px wide**
-- keep aspect ratio intact
-- use portrait posters only as a final fallback if neither suitable Social Media nor suitable Web Materials banner assets exist
-
-### Implementation note — actual file resizing
-Use a real image-processing tool before uploading to Mailchimp.
-
-Example with ImageMagick:
+### ⛔ HARD RESIZE GATE — Do not upload until this passes:
 
 ```bash
 magick input.jpg -resize 700x output.jpg
+identify output.jpg   # MUST confirm 700px wide (e.g. 700x394)
 ```
 
-Recommended verification step:
-
-```bash
-identify output.jpg
-```
-
-Expected result should show the resized file is **700px wide** (for example `700x394`).
-
-Rules:
-- do not upload the original large source file and rely on HTML width alone
-- upload the resized `output.jpg` file instead
-- keep aspect ratio intact unless the user explicitly asks for cropping
+- Do NOT upload the original source file.
+- Do NOT use the MovieXchange or external CDN URL directly in the HTML.
+- Do NOT rely on HTML `width` attribute or CSS to display the image at 700px.
+- The file uploaded to Mailchimp MUST itself be 700px wide when inspected.
+- If `identify` does not show 700px wide → resize again before uploading.
 
 ---
 
