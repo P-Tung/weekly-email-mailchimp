@@ -556,18 +556,20 @@ If any of those checks fail:
 
 ---
 
-## Step 10 — Update EVENT/AD sections
-The yellow promo/event cards near the lower part of the template must also be updated to the **current period**.
+## Step 10 — EVENT/AD sections
+### ⛔ DO NOT EDIT — leave as-is by default
 
-For each event/ad block, update:
-- image
-- title
-- promo text
-- BOOK NOW link
+The yellow promo/event cards (`EVENT/AD CARD #1–5`) are **preserved template content**.
 
-Best practice:
-- use current-week Veezi purchase URLs
-- use current films, not stale previous-week promotions
+**Default rule: do nothing to these blocks.**
+
+Only update them if the user **explicitly asks** to change an event or ad card.
+
+When the user does ask, update per card:
+- image (`<img src>` → Mailchimp-hosted)
+- title text
+- promo description text
+- BOOK NOW link → current Veezi purchase URL
 
 ---
 
