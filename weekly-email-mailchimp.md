@@ -131,31 +131,90 @@ Before MovieXchange work:
 
 This is a hard rule. Do not pick portrait posters for the main featured film blocks.
 
+### ✅ Definition: "Good Landscape Banner"
+
+A **good landscape banner** is an image asset from MovieXchange that meets **ALL** of the following criteria:
+
+| Criteria | Requirement |
+|---|---|
+| **Orientation** | Width > Height (landscape/wide — NOT portrait) |
+| **Minimum width** | At least 700px wide (ideally 1000px+ for best quality after resize) |
+| **Aspect ratio** | Roughly 16:9, 2:1, or similar cinematic wide ratio |
+| **Content type** | Official promotional art (not a scene still or behind-the-scenes photo) |
+| **NOT a still** | Title/description must NOT contain "still" or "stills" |
+| **Film title visible** | The film title/logo must be **clearly readable on the image itself** — customers must be able to identify the film just by seeing the banner |
+| **Visually usable** | Reads clearly at 700px wide — not awkwardly cropped, not dark/muddy |
+
+> 🎯 **The most important visual quality check:** A good banner must make a customer think *"Wow, what is this film?"* when they see it in the email. If the title is not on the image, it fails — even if it is landscape and technically valid.
+
+**Fails automatically if ANY of these are true:**
+- It is taller than it is wide (portrait)
+- It contains "still" or "stills" in the asset label
+- It is under 700px wide in its source file
+- It is a raw scene capture with no promotional branding
+- Film title/logo is NOT visible on the image
+- Image is too dark, blurry, or cluttered to read at 700px wide
+
+---
+
 ### Why landscape?
 The email layout is wide (700px). A landscape banner fills it correctly. A portrait poster is tall and narrow — it creates a very long, improperly formatted email block.
 
 ### Mandatory image selection steps (MUST follow in order):
-1. Log into MovieXchange.
-2. Search the exact film title.
-3. Open the correct NZ release.
-4. Go to the release media / image assets.
-5. **Look ONLY for landscape/wide banner assets. Do NOT pick portrait posters.**
-6. **Priority order for landscape banners:**
-   - First: asset whose title/description/metadata includes **"Social Media"**
-   - Second (fallback): asset whose title/description/metadata includes **"Web Materials"**
-   - Third (last resort): any other official wide/landscape promotional asset (e.g. Backdrop) that is clearly promotional art
-7. **NEVER use any asset whose title/description/metadata includes "still" or "stills".** These are random scene captures, not promotional banners.
-8. Visually inspect the shortlisted candidates — prefer the banner that reads best at 700px wide in an email.
-9. If multiple versions of the same good banner exist, pick the one with source width nearest to but above 700px.
 
-### ⛔ STOP — If NO good landscape banner exists for a film:
-Do **NOT**:
+1. Log into MovieXchange at `https://film.moviexchange.com/`
+2. Search the exact film title and open the correct NZ release.
+3. Scroll to the **Media** section on the film detail page.
+4. The Media section has tabs: `All Media | Posters | Stills | Videos | Social Media | Web Materials | Adv. & Promos | Other`
+
+#### 🔍 3-Pass Tab Strategy (follow in order):
+
+**Pass 1 — Social Media tab**
+- Click the **Social Media** tab
+- Use AI vision to **view each image** in this tab
+- Look for a landscape banner where the **film title is clearly visible on the image**
+- If a good banner is found here → **use it, stop searching**
+- If none qualify → move to Pass 2
+
+**Pass 2 — Web Materials tab**
+- Click the **Web Materials** tab
+- Use AI vision to **view each image** in this tab
+- Look for a landscape banner where the **film title is clearly visible on the image**
+- If a good banner is found here → **use it, stop searching**
+- If none qualify → move to Pass 3
+
+**Pass 3 — All Media tab (last resort)**
+- Click the **All Media** tab
+- Use AI vision to **visually scan all images** in this tab
+- Skip anything labeled or visually identified as: Posters (portrait), Stills, Videos, headshots
+- Find any landscape image where the **film title is clearly visible on the image**
+- Pick the best qualifying banner found
+- If still nothing qualifies → **skip this film entirely** (see STOP rule below)
+
+#### ✅ Visual quality check (apply at every pass):
+- **MUST**: film title/logo is readable on the image itself
+- **MUST**: image is wide/landscape (wider than tall)
+- **MUST**: image reads clearly at 700px wide (not muddy, not awkwardly cropped)
+- **NEVER**: use an image with "still" or "stills" in its label
+- **NEVER**: use a portrait poster even if it has the title on it
+- If multiple candidates pass → pick the one with source width nearest to but above 700px
+
+### ⛔ STOP — If Pass 3 (All Media) still yields no good banner:
+
+**Do NOT under any circumstances:**
 - use a portrait poster as a fallback
 - crop a portrait poster into a fake banner
 - use a scene still
 - use a Veezi thumbnail
+- use any image that does not have the film title clearly visible
 
-Instead → **skip that film entirely** and select the next best film from the full Veezi list that DOES have a good landscape banner. See the Film Selection Rule below.
+**Mandatory action — skip and move on:**
+1. ❌ Mark this film as **no good banner available**
+2. ⏭️ **Move to the next film** on the Veezi ranked list
+3. 🔍 Run the full 3-pass tab strategy again for that next film
+4. Repeat until you have **4 films each with a confirmed good banner**
+
+> There is no fallback image option. If all 3 passes fail → the film is skipped. No exceptions.
 
 ### Resize rule (MANDATORY — no exceptions):
 - After selecting the banner, download the source file.
