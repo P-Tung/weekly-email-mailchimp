@@ -127,38 +127,89 @@ Before MovieXchange work:
 
 ## ⚠️ CANONICAL FEATURED IMAGE RULE — This overrides all other image guidance in this file
 
-**ALL featured film images MUST be landscape banners. NOT portrait posters.**
+### 🧠 Primary Rule: Use Image Recognition to Judge Marketing Quality First
 
-This is a hard rule. Do not pick portrait posters for the main featured film blocks.
+Landscape ratio is a **minimum technical requirement**, not the selection goal.
 
-### ✅ Definition: "Good Landscape Banner"
+The AI agent MUST use **image recognition (visual understanding)** to evaluate every candidate image and ask:
 
-A **good landscape banner** is an image asset from MovieXchange that meets **ALL** of the following criteria:
+> **"Would a cinema customer see this image and immediately know what film it is promoting?"**
+
+- ✅ YES → it is a marketing banner candidate → then check technical specs
+- ❌ NO → it is NOT a marketing banner → reject it immediately, regardless of dimensions
+
+**A landscape scene still, a performance photo, a raw movie capture — these all FAIL the marketing test even if they are 1920x1080.**
+
+---
+
+### ✅ What a Good Marketing Banner Looks Like (Image Recognition Criteria)
+
+When you open and view the full image, ask yourself these questions:
+
+| Question | Required answer |
+|---|---|
+| Is the **film title or logo** visually present on the image itself? | **YES** — text or logo must be embedded/burned in |
+| Does it look like **official promotional/marketing art**? | **YES** — designed to promote the film, not document it |
+| Could a customer identify this film **just from the image alone**? | **YES** — no guessing required |
+| Is it a **scene still, behind-the-scenes, or performance capture**? | **NO** — reject if yes, even if landscape |
+| Is it a **portrait poster** (taller than wide)? | **NO** — reject if yes |
+| Is the image **clean and readable at 700px wide**? | **YES** — not dark, muddy, or awkwardly cropped |
+
+> 🎯 **Ask yourself:** If you removed the film title text below the image, would a customer still know what film this is? If NO → reject the image.
+
+---
+
+### ✅ Technical Requirements (check AFTER marketing quality passes)
 
 | Criteria | Requirement |
 |---|---|
-| **Orientation** | Width > Height (landscape/wide — NOT portrait) |
-| **Minimum width** | At least 700px wide (ideally 1000px+ for best quality after resize) |
-| **Aspect ratio** | Roughly 16:9, 2:1, or similar cinematic wide ratio |
-| **Content type** | Official promotional art (not a scene still or behind-the-scenes photo) |
-| **NOT a still** | Title/description must NOT contain "still" or "stills" |
-| **Film title visible** | The film title/logo must be **clearly readable on the image itself** — customers must be able to identify the film just by seeing the banner |
-| **Visually usable** | Reads clearly at 700px wide — not awkwardly cropped, not dark/muddy |
+| **Orientation** | Width > Height (landscape — NOT portrait) |
+| **Minimum width** | At least 700px wide (ideally 1000px+ for resize quality) |
+| **Aspect ratio** | Roughly 16:9, 2:1, or similar wide cinematic ratio |
 
-> 🎯 **The most important visual quality check:** A good banner must make a customer think *"Wow, what is this film?"* when they see it in the email. If the title is not on the image, it fails — even if it is landscape and technically valid.
+---
 
-**Fails automatically if ANY of these are true:**
-- It is taller than it is wide (portrait)
-- It contains "still" or "stills" in the asset label
-- It is under 700px wide in its source file
-- It is a raw scene capture with no promotional branding
-- Film title/logo is NOT visible on the image
-- Image is too dark, blurry, or cluttered to read at 700px wide
+### 🎯 Best image types (ideal marketing banners)
+
+- **Official Trailer Thumbnails** — almost always have the film title burned in
+- **Social Banners** — designed for digital marketing, title always included
+- **Key Art / Main Art** — hero promotional image with title
+- **Actor callout banners** — acceptable only if the **film title is also visible** (e.g. "JACKI WEAVER — HOLY DAYS")
+
+Asset name patterns to prioritise:
+- `OfficialTrailerThumbnail` / `OfficialTr...`
+- `Social banner` / `SocialBanner`
+- `KeyArt` / `MainArt`
+- `PromoBanner` / `Promo`
+- Anything tagged **Preferred** + **Official**
+
+---
+
+### ❌ Auto-Reject (any of these = immediate disqualification)
+
+- Scene still or raw movie capture — **even if landscape**
+- Performance photo / event photo / behind-the-scenes — **even if landscape**
+- Portrait poster (taller than wide)
+- Asset label contains "still" or "stills"
+- Film title/logo NOT visible on the image
+- Under 700px wide
+- Too dark, blurry, or cluttered to read at 700px
 
 ---
 
 ### Why landscape?
-The email layout is wide (700px). A landscape banner fills it correctly. A portrait poster is tall and narrow — it creates a very long, improperly formatted email block.
+The email layout is wide (700px). A landscape banner fills it correctly. A portrait poster creates a tall, broken email block. But landscape alone is not enough — marketing quality is the primary filter.
+
+---
+
+### ⚠️ AI Vision Requirement — MUST be followed
+
+The agent running this workflow **MUST have browser access and visual (image recognition) capability**.
+
+- **Do NOT evaluate images from filenames or small grid thumbnails alone**
+- **For every candidate image: click to open/preview the full-size image, then visually assess it**
+- Apply the marketing quality questions above to the full image before checking dimensions
+- If your session does not support browser vision → stop and report that banner selection cannot be completed
 
 ### Mandatory image selection steps (MUST follow in order):
 
@@ -169,35 +220,36 @@ The email layout is wide (700px). A landscape banner fills it correctly. A portr
 
 #### 🔍 3-Pass Tab Strategy (follow in order):
 
-**Pass 1 — Social Media tab**
-- Click the **Social Media** tab
-- Use AI vision to **view each image** in this tab
-- Look for a landscape banner where the **film title is clearly visible on the image**
-- If a good banner is found here → **use it, stop searching**
-- If none qualify → move to Pass 2
-
-**Pass 2 — Web Materials tab**
+**Pass 1 — Web Materials tab (start here)**
 - Click the **Web Materials** tab
-- Use AI vision to **view each image** in this tab
-- Look for a landscape banner where the **film title is clearly visible on the image**
-- If a good banner is found here → **use it, stop searching**
-- If none qualify → move to Pass 3
+- Focus first on items tagged **Preferred** + **Official**
+- For each candidate: **open the full image → apply marketing quality check → then check dimensions**
+- Prioritise: `OfficialTrailer`, `KeyArt`, `Promo`, `Banner` in asset names
+- ❌ Reject immediately: scene stills, performance photos, portrait posters, anything without title on image
+- ✅ Good marketing banner found → use it, stop searching
+- None qualify → move to Pass 2
+
+**Pass 2 — Social Media tab**
+- Click the **Social Media** tab
+- For each candidate: **open the full image → apply marketing quality check → then check dimensions**
+- Prioritise: `Social banner`, `SocialBanner`, trailer thumbnails, promo banners
+- ❌ Reject: scene stills, performance photos, portraits, no title on image
+- ✅ Good marketing banner found → use it, stop searching
+- None qualify → move to Pass 3
 
 **Pass 3 — All Media tab (last resort)**
 - Click the **All Media** tab
-- Use AI vision to **visually scan all images** in this tab
-- Skip anything labeled or visually identified as: Posters (portrait), Stills, Videos, headshots
-- Find any landscape image where the **film title is clearly visible on the image**
-- Pick the best qualifying banner found
-- If still nothing qualifies → **skip this film entirely** (see STOP rule below)
+- Skip grid items visually identified as: portrait posters, stills, videos, headshots, performance photos
+- For remaining candidates: **open the full image → apply marketing quality check → then check dimensions**
+- ✅ Good marketing banner found → use it
+- None qualify → **skip this film entirely** (see STOP rule below)
 
-#### ✅ Visual quality check (apply at every pass):
-- **MUST**: film title/logo is readable on the image itself
-- **MUST**: image is wide/landscape (wider than tall)
-- **MUST**: image reads clearly at 700px wide (not muddy, not awkwardly cropped)
-- **NEVER**: use an image with "still" or "stills" in its label
-- **NEVER**: use a portrait poster even if it has the title on it
-- If multiple candidates pass → pick the one with source width nearest to but above 700px
+#### ✅ Selection priority when multiple images pass:
+1. Official Trailer Thumbnails with title on image
+2. Social Banners with title on image
+3. Key Art / Promo banners with title on image
+4. Actor callout banners where film title is also visible
+5. Among equals → pick the one with source width nearest to but above 700px
 
 ### ⛔ STOP — If Pass 3 (All Media) still yields no good banner:
 
