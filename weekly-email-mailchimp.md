@@ -486,38 +486,40 @@ Then immediately inspect the new file to identify editable vs. locked blocks:
 
 ---
 
-## Step 4 — MovieXchange pass: select films + gather content + prepare banners
+## Step 4 — The Banner Database & Autonomous Vision Pass
 
-> **One continuous pass per film.** Do not make separate trips to MovieXchange.
+To ensure maximum autonomy, the AI uses **"One-Shot Vision"** to pick banners and remembers them for future weeks.
 
-Work down the Veezi ranked list. For each candidate film:
+### 4a — Memory Check (Autopilot)
+Before searching MovieXchange, check **film-banner-database.json**.
+- ✅ **Movie Found?** Use the stored `hosted_banner_url` and move to Step 4d.
+- ❌ **Movie New?** Proceed to Step 4b.
 
-**4a — Banner check (follow the 3-pass tab strategy in CANONICAL FEATURED IMAGE RULE)**
-1. Log into MovieXchange, search the exact film title
-2. Run: Social Media tab → Web Materials tab → All Media tab (in order)
-3. ❌ No good landscape banner → skip this film, move to the next ranked film
-4. ✅ Good banner found → continue to 4b **without leaving the page**
+### 4b — The Grid-Capture & Autonomous Selection
+To maximize efficiency and ensure the best choice, we use the "All Media" view.
 
-**4b — Gather all film content (while on the same MovieXchange page)**
-- title, rating, rating notes, runtime
-- short marketing synopsis
-- trailer URL (prefer Deluxe Cinemas site; fall back to MovieXchange)
+1.  **Navigate**: Open the **"All Media"** tab in MovieXchange. This shows every asset (Posters, Stills, Social, Web) in one large grid.
+2.  **Grid Screenshot**: Take **one full-page screenshot** of the entire image grid.
+3.  **Visual Decision**: 
+    - AI uses **one vision call** to scan the entire grid at once.
+    - **Selection Priority**: 
+        1. Official Trailer Thumbnails (with title).
+        2. Social Banners (landscape).
+        3. Landscape "Key Art."
+    - If no landscape banner with a visible title is found, report failure and skip.
+4.  **Approval (AI-Only)**: The AI picks the best one and proceeds.
 
-Rating line format: `PG Coarse language | 96 mins | No Comps`
+### 4c — Final Verification & Storage
+1.  **Download**: Pull the winning high-res source file.
+2.  **Save to Memory**: Immediately add the selection to `film-banner-database.json`.
+3.  **Next Week**: This film will now skip the vision pass entirely (Step 4a).
 
-**4c — Download, resize, upload banner**
-```bash
-magick input.jpg -resize 700x output.jpg
-identify output.jpg   # MUST show 700px wide before proceeding
-```
-- Upload the resized file to **Mailchimp file storage**
-- Note the Mailchimp-hosted URL — this is what goes in the HTML
+### 4d — Download, Resize, & Upload (Intrinsic 700px Only)
+1.  **Resize**: Use Magick to make the file **exactly 700px wide**.
+2.  **Upload**: Put the 700px version into **Mailchimp File Manager**.
+3.  **Link**: Use the fresh Mailchimp URL in the final campaign HTML.
 
-⛔ Do NOT upload the original source file.
-⛔ Do NOT use a MovieXchange or external CDN URL in the HTML.
-⛔ Do NOT rely on HTML `width` or CSS — the uploaded file itself must be 700px wide.
-
-Repeat 4a → 4b → 4c until **exactly 4 films** are confirmed with content + hosted banner URL.
+**Autonomous Result**: For the first week of a new film, the AI performs a one-time vision check to curate the banner. For all following weeks, the AI runs the email **100% autonomously** using the saved database choices.
 
 ---
 
