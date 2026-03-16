@@ -1,0 +1,1 @@
+Please read the AGENT_MAILER_PROMPT_TEMPLATE.md file to work
