@@ -1,0 +1,14 @@
+Required image files for Mailchimp import (place in same folder as template.html before zipping):
+
+  header.jpg           — Header/banner image (mc:edit="header_image"), 600px wide
+  hero.jpg             — Featured film hero image (mc:edit="featured_film_image"), 600×260
+  now-showing.gif      — "Now Showing" section heading (mc:edit="now_showing_heading")
+  placeholder-movie.jpg — Movie poster placeholder (mc:edit="movie_poster", "coming_soon_*_poster_*"), 160×240
+  coming-soon.gif      — "Coming Soon" section heading (mc:edit="coming_soon_heading")
+  event-placeholder.jpg — Promo/event image (mc:edit="promo_image"), 200×130
+  phone.png            — Footer icon, 48×48
+  website.png          — Footer icon, 48×48
+  email.png            — Footer icon, 48×48
+  facebook.png         — Footer icon, 48×48
+
+Note: The footer map uses an external URL (via.placeholder.com). Replace that URL in Mailchimp after import with your own map image URL if desired.

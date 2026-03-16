@@ -1,0 +1,46 @@
+MAILCHIMP CUSTOM HTML TEMPLATE — IMPORT INSTRUCTIONS
+====================================================
+
+WHAT TO ZIP AND UPLOAD
+----------------------
+1. Put template.html and ALL required image files in ONE folder (no subfolders).
+2. Required files:
+   - template.html (required)
+   - header.jpg
+   - hero.jpg
+   - now-showing.gif
+   - placeholder-movie.jpg
+   - coming-soon.gif
+   - event-placeholder.jpg
+   - phone.png
+   - website.png
+   - email.png
+   - facebook.png
+3. Select everything in that folder and create a ZIP file (e.g. cinema-email-mailchimp.zip).
+4. In Mailchimp: Create campaign or template → Code your own → Import a template → Upload the ZIP.
+
+IMPORTANT
+---------
+- Do NOT put template.html inside a subfolder in the ZIP. The HTML file and images must be in the ZIP root.
+- Image filenames must match exactly (e.g. hero.jpg not Hero.jpg).
+- If any image is missing, Mailchimp may still import but those images will be broken until you add/upload them in the editor.
+
+WHAT WAS CHANGED (AUDIT REPORT)
+-------------------------------
+- Paths simplified: All image references were already relative. Filenames with spaces were renamed for Mailchimp compatibility:
+  • "hero image.jpg"  → hero.jpg
+  • "Now Showing.gif" → now-showing.gif
+  • "placeholder movie.jpg" → placeholder-movie.jpg
+  • "Coming soon.gif" → coming-soon.gif
+- No absolute paths, file://, or nested folders were present; none added.
+- Mailchimp tags preserved: mc:edit, mc:repeatable, mc:variant, *|MC:SUBJECT|*, *|UNSUBSCRIBE|*, etc. unchanged.
+- No JavaScript or framework code added. Inline styles and email-safe CSS only.
+- Footer map image: still uses external URL (via.placeholder.com). Replace in Mailchimp with your map image URL if needed.
+
+MISSING ASSETS
+--------------
+At package creation, NO image files existed in the project. You must add the 10 image files listed above to this folder (or create placeholders) before zipping. See ASSETS-REQUIRED.txt for details.
+
+PACKAGE STATUS
+--------------
+Ready for Mailchimp ZIP import once the 10 image files are placed in this folder alongside template.html.
