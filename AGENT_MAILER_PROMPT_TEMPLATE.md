@@ -1,4 +1,4 @@
-# Cinema Email Mailer — AI Agent Prompt Template
+# Cinema Email Mailer - AI Agent Prompt Template
 
 Use this template to brief your AI agent. Fill in the placeholders in square brackets, then paste the full prompt to the agent. The agent must refer to sections of the mailer using **exactly** these names (they match the metadata in `cinema-email-master-template.html`).
 
@@ -67,7 +67,7 @@ Additional instructions: [Any other rules, date range for sessions, branding not
 
 ---
 
-## Quick reference — exact names for copy-paste
+## Quick reference - exact names for copy-paste
 
 - **Intro text box**
 - **Featured film one** / **Featured film two** / **Featured film three** / …

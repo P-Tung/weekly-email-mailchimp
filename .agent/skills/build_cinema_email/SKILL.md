@@ -69,6 +69,19 @@ This skill guides you to build or update the **cinema email master template** by
    - **Critical**: Ensure the header and section GIF headers are correctly set or preserved.
    - **Sessions**: Generate the timeline with individual clickable links inside the `movie_showtimes` tag.
 4. **Omission**: Remove any repeatable section from the HTML if it is explicitly marked as "omit" or if no data exists for it (e.g., if there is no third featured film).
-5. **Finalization**: Check **`WORKFLOW_MODE`**.
+5. **Verification & Auto-Fix Loop**: 
+   - Spawn a **tester sub-agent** to audit the generated `campaign_email.html`.
+   - Audit criteria: Verify compliance with **ALL rules** in `SKILL.md` and `AGENT_MAILER_PROMPT_TEMPLATE.md`.
+   - **Crucial checks**: 
+     - **Clickable session links**: Every time must have a unique Veezi URL.
+     - **GIF Headers**: `now-showing.gif` and `coming-soon.gif` must be images, not text.
+     - **Button text**: Must say **"View Trailer"**, never "View Artwork".
+     - **Links**: Trailer buttons must link to **YouTube trailers**.
+     - **Preservation**: The **Header image (`header.jpg`)** and link must be present.
+     - **Meta-data**: Ensure all films have their **tagline** and **rating** fields populated.
+     - **Dimensions**: Hero banners (600px) and Posters (160x240px) must use correctly sized local assets.
+   - If any rule is violated, the sub-agent **MUST fix the HTML** and re-verify.
+   - Continue the loop until the HTML is **100% compliant**.
+6. **Finalization**: Check **`WORKFLOW_MODE`**.
    - If **`testing`**: create **draft** and send test to **tester address** only.
    - If **`production`**: create **draft** and notify user for final approval.
