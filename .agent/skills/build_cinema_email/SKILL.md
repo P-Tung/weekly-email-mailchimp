@@ -80,7 +80,15 @@ This skill guides you to build or update the **cinema email master template** by
      - **Preservation**: The **Header image (`header.jpg`)** and link must be present.
      - **Meta-data**: Ensure all films have their **tagline** and **rating** fields populated.
      - **Dimensions**: Hero banners (600px) and Posters (160x240px) must use correctly sized local assets.
-   - If any rule is violated, the sub-agent **MUST fix the HTML** and re-verify.
+    - **404 Link & Asset Check (Crucial)**: 
+      - The sub-agent MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in `campaign_email.html`.
+      - **Command**: `node check_404.js campaign_email.html`
+      - If any link or image returns a **404**, **FILE_NOT_FOUND**, or **ERR_NAME_NOT_RESOLVED**:
+        1. **List all broken links** clearly for the next step.
+        2. **Find it again**: Search **MovieXchange** or **Veezi** for the correct asset or link.
+        3. **Fallback**: If the official asset is still 404, look for an alternative (e.g., fallback to the cinema homepage for a broken trailer).
+        4. **Replace and Re-verify**: Update the HTML content and run `check_404.js` again.
+    - If any rule is violated, the sub-agent **MUST fix the HTML** and re-verify.
    - Continue the loop until the HTML is **100% compliant**.
 6. **Finalization**: Check **`WORKFLOW_MODE`**.
    - If **`testing`**: create **draft** and send test to **tester address** only.
