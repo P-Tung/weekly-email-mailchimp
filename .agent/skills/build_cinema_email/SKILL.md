@@ -33,7 +33,7 @@ This skill guides you to build or update the **cinema email master template** by
    - **Trailers**: MUST fetch **YouTube video links** from the film profile.
 3. **Media (Processing)**:
    - Download assets and perform **hard resize**:
-     - **Featured Films**: 600px wide (Landscape).
+     - **Featured Films**: 700px wide (Landscape).
      - **Now Showing/Coming Soon Posters**: 160x240px (Portrait).
 4. **Mailchimp (Integrator)**:
    - Map all data into the template using `mc:edit` names.
@@ -57,7 +57,7 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
 
 ## Layout & Image Rules (Strict)
 
-- **Featured Films**: Use **Landscape** hero banners (600px wide).
+- **Featured Films**: Use **Landscape** hero banners (700px wide).
 - **Now Showing/Coming Soon**: Use **Portrait** posters (160x240px).
 - **Asset Retrieval**: If a film is not found on MX, **retry search** with variations. DO NOT use placeholders unless multiple search attempts fail.
 
@@ -66,7 +66,7 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
 1. **Extraction**: Identify films and target dates using **Veezi**. Extract the **exact booking URL** for every individual session.
 2. **Content Retrieval (MovieXchange)**: Fetch metadata and assets.
    - **Trailers**: Fetch the YouTube URL. Fall back to the cinema homepage ONLY if no trailer exists on MX.
-   - **Sizing**: Download and resize to **600px wide** (Featured) and **160x240px** (Now Showing) using `magick`.
+   - **Sizing**: Download and resize to **700px wide** (Featured) and **160x240px** (Now Showing) using `magick`.
 3. **Drafting**: Match the prompt data to the **exact `mc:edit` names** in the master template.
    - **Critical**: Ensure the header and section GIF headers are correctly set or preserved.
    - **Sessions**: Generate the timeline with individual clickable links inside the `movie_showtimes` tag.
@@ -81,7 +81,7 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
      - **Links**: Trailer buttons must link to **YouTube trailers**.
      - **Preservation**: The **Header image (`header.jpg`)** and link must be present.
      - **Meta-data**: Ensure all films have their **tagline** and **rating** fields populated.
-     - **Dimensions**: Hero banners (600px) and Posters (160x240px) must use correctly sized local assets.
+     - **Dimensions**: Hero banners (700px) and Posters (160x240px) must use correctly sized local assets.
    - **404 Link & Asset Check (Crucial)**:
      - The sub-agent MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in `campaign_email.html`.
      - **Command**: `node check_404.js campaign_email.html`
