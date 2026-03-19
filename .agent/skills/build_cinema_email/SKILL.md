@@ -55,14 +55,21 @@ This skill guides you to build or update the **cinema email master template** by
 
 ## Core Systems & Sub-Agent Roles
 
+> **IMPORTANT: DO NOT install external dependencies** (e.g., Puppeteer, Playwright, Selenium).
+> Use your **built-in browser tools** (`browser_subagent`, `read_url_content`, etc.) to scrape websites.
+> You already have a headless browser available. No `npm install` or `yarn add` is needed.
+
 1. **Veezi (Scraper)**:
    - Determine showing films and **unique deep links** for every individual session.
    - Truth source for what is actually playing in the target date range.
+   - **URL**: `https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym`
+   - **How to scrape**: Use `browser_subagent` to open the Veezi sessions page. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page.
 2. **MovieXchange (Researcher)**:
    - Source for official titles, ratings, synopses, and media.
-   - **Trailers**: MUST fetch **YouTube video links** from the film profile.
+   - **Trailers**: On each film's MX profile page, find the **"Watch Trailer"** button (with YouTube icon). Extract the `href` from that button for the YouTube URL.
+   - **How to scrape**: Use `browser_subagent` or `read_url_content` to open the film page on MovieXchange (search at `https://moviexchange.com`). Extract: title, tagline, rating, synopsis, poster image URL, landscape/banner image URL, and the "Watch Trailer" button YouTube link.
 3. **Media (Processing)**:
-   - Download assets and perform **hard resize**:
+   - Download assets using `curl` and perform **hard resize** using `magick`:
      - **Featured Films**: 700px wide (Landscape).
      - **Now Showing/Coming Soon Posters**: 160x240px (Portrait).
 4. **Mailchimp (Integrator)**:
