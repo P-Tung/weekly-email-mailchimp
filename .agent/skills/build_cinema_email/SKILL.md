@@ -78,11 +78,14 @@ This skill guides you to build or update the **cinema email master template** by
    - **How to scrape**: Use `browser_subagent` to open the Veezi sessions page. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page. Find the **earliest session** URL for the Book Now buttons.
 2. **MovieXchange (Researcher) / Deluxe Cinemas Fallback**:
    - Source for official titles, ratings, synopses, trailers, and media.
-   - **How to scrape**: Use `browser_subagent` to open the film page on MovieXchange (search at `https://moviexchange.com`). Wait for the DOM to render.
-   - Extract: title, tagline, rating, and full synopsis.
-   - **Trailers**: Extract the `href` from the `<button>` containing the text 'Watch Trailer' and the `pi-youtube` icon.
-   - **Images**: Navigate to the **Media** tab. Extract the official poster image URL, and the landscape/banner image URL.
-   - **Fallback Strategy**: If MX Film blocks your headless browser, immediately fallback to scraping `https://www.deluxecinemas.co.nz/movie/[film-name]` to find the official metadata, official poster (`img.vwassets.com`), and YouTube trailer.
+   - **How to scrape (M2M API - PREFERRED)**: Instead of scraping the Angular SPA (which is blocked by hCaptcha), you MUST authenticate directly against the MovieXchange API using standard OAuth2.
+     - **Credentials**: Safely stored locally at `~/.openclaw/workspace/.mx_api_credentials`. Do not ask the user for them.
+     - **Auth Endpoint**: `POST https://film.moviexchange.com/api/token`
+     - **Payload (form-urlencoded)**: `grant_type=password&client_id=MovieXchangeApi&username=[USERNAME]&password=[PASSWORD]`
+     - **Usage**: Extract the `access_token` from the JSON response and use it as a `Bearer` token to query the MX API endpoints (e.g., searching for films, fetching release details and media).
+   - **Trailers & Metadata**: Once authenticated, pull the title, tagline, rating, full synopsis, and YouTube trailer links directly from the API JSON responses.
+   - **Images**: Navigate to the API's media endpoints to extract the official poster image URL and the landscape/banner image URL.
+   - **Fallback Strategy**: If the API approach fails for a specific film, immediately fallback to scraping `https://www.deluxecinemas.co.nz/movie/[film-name]` to find the official metadata, official poster (`img.vwassets.com`), and YouTube trailer.
 3. **Media (Processing)**:
    - Download assets locally using `curl`.
    - Perform proportional resizing using `magick`:
