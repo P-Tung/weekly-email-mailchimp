@@ -36,7 +36,19 @@ This skill guides you to build or update the **cinema email master template** by
   - The `featured_film_trailer` and `movie_trailer` `href` MUST be a valid **YouTube URL** (e.g., `https://www.youtube.com/watch?v=XXXX`).
   - **NEVER** set `href="None"` or leave it empty. This breaks the button.
   - If no YouTube trailer is found on MovieXchange for a film, **fall back** to `https://deluxecinemas.co.nz/` as the trailer link.
-  - **HOW TO FIND THE TRAILER ON MX**: On each film's MovieXchange profile page, look for the **"Watch Trailer"** button (it has a YouTube icon next to it). Click or extract the `href` from that button, it links directly to the YouTube trailer URL. This is the URL to use for the `featured_film_trailer` and `movie_trailer` fields.
+  - **HOW TO FIND THE TRAILER ON MX**: MovieXchange uses Angular (`ng-star-inserted`). You MUST use a headless browser script (like Puppeteer via Node.js) to load the page and wait for the DOM to render. To find the trailer link, locate the `<button>` containing the text 'Watch Trailer' and a `pi-youtube` icon. You will need to extract the underlying bound YouTube URL. Do NOT attempt to static-fetch the HTML.
+
+- **IMAGE HOSTING & RESIZING (CRITICAL)**:
+  - You MUST download the actual official movie posters and banners.
+  - To get the Featured Film image, navigate to the **Media** tab of the film's profile (MX Film) and locate the official **Landscape/Banner** image.
+  - To get the Now Showing/Coming Soon image, navigate to the **Media** tab and locate the official **Poster** image.
+  - If MX Film blocks your headless browser, **fallback** to scraping `https://www.deluxecinemas.co.nz/movie/[film-name]` to find the official CDN image (e.g., `img.vwassets.com`).
+  - **Resizing Constraint**: Once downloaded, you MUST resize it locally using `magick` retaining the aspect ratio (`convert image.jpg -resize 700x output.jpg` for Featured Films, and `convert image.jpg -resize 160x240! output.jpg` for Now Showing).
+  - **Mailchimp Upload**: You CANNOT inject local file paths (like `hero.jpg`) or external TMDB links into the HTML. You MUST upload the perfectly-resized image to the **Mailchimp File Manager** via the API, retrieve the absolute public `mcusercontent.com` URL, and inject *that URL* into the `mc:edit` `src` tag.
+
+- **VEEZI BOOK NOW LINKS**:
+  - The `featured_film_book` and `movie_cta` links MUST point to the **earliest session** in the provided date range (e.g., `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=wpge11hbvd3zadj20jkc0y36ym`).
+  - You must dynamically parse the JSON-LD payload or scrape the Veezi API directly to locate the earliest correct session ID.
 
 - **SECTION PRESERVATION (Coming Soon, Special Events, Footer)**:
   - If the user prompt does **NOT** specify Coming Soon films, **KEEP** the entire Coming Soon section (section 5) from the master template with its placeholder content. Do NOT delete it.
@@ -63,18 +75,24 @@ This skill guides you to build or update the **cinema email master template** by
    - Determine showing films and **unique deep links** for every individual session.
    - Truth source for what is actually playing in the target date range.
    - **URL**: `https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym`
-   - **How to scrape**: Use `browser_subagent` to open the Veezi sessions page. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page.
-2. **MovieXchange (Researcher)**:
-   - Source for official titles, ratings, synopses, and media.
-   - **Trailers**: On each film's MX profile page, find the **"Watch Trailer"** button (with YouTube icon). Extract the `href` from that button for the YouTube URL.
-   - **How to scrape**: Use `browser_subagent` or `read_url_content` to open the film page on MovieXchange (search at `https://moviexchange.com`). Extract: title, tagline, rating, synopsis, poster image URL, landscape/banner image URL, and the "Watch Trailer" button YouTube link.
+   - **How to scrape**: Use `browser_subagent` to open the Veezi sessions page. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page. Find the **earliest session** URL for the Book Now buttons.
+2. **MovieXchange (Researcher) / Deluxe Cinemas Fallback**:
+   - Source for official titles, ratings, synopses, trailers, and media.
+   - **How to scrape**: Use `browser_subagent` to open the film page on MovieXchange (search at `https://moviexchange.com`). Wait for the DOM to render.
+   - Extract: title, tagline, rating, and full synopsis.
+   - **Trailers**: Extract the `href` from the `<button>` containing the text 'Watch Trailer' and the `pi-youtube` icon.
+   - **Images**: Navigate to the **Media** tab. Extract the official poster image URL, and the landscape/banner image URL.
+   - **Fallback Strategy**: If MX Film blocks your headless browser, immediately fallback to scraping `https://www.deluxecinemas.co.nz/movie/[film-name]` to find the official metadata, official poster (`img.vwassets.com`), and YouTube trailer.
 3. **Media (Processing)**:
-   - Download assets using `curl` and perform **hard resize** using `magick`:
-     - **Featured Films**: 700px wide (Landscape).
-     - **Now Showing/Coming Soon Posters**: 160x240px (Portrait).
+   - Download assets locally using `curl`.
+   - Perform proportional resizing using `magick`:
+     - **Featured Films**: `convert file.jpg -resize 700x out.jpg` (maintains aspect ratio).
+     - **Now Showing/Coming Soon Posters**: `convert file.jpg -resize 160x240! out.jpg` (force exact dimensions).
+   - **Upload**: Upload the resized files to the Mailchimp File Manager API to obtain public absolute URLs (`mcusercontent.com`) and use those for the HTML `src` tags.
 4. **Mailchimp (Integrator)**:
-   - Map all data into the template using `mc:edit` names.
-   - Create Draft and send test to the tester.
+   - Map all data into the template using `mc:edit` names and public Mailchimp-hosted image URLs.
+   - Check if an existing draft campaign is available for this update. Update its HTML content via PUT request.
+   - If not, create a Draft. Send test to the tester.
 
 ## Allowed Section Names & Mapping
 
@@ -82,44 +100,47 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
 
 - **Intro text box**: Date range and greeting. Ensure film list in intro matches the full campaign lineup.
 - **Featured film one / two / three**:
-  - Title, **FULL** tagline (never truncated), rating, **FULL** description, hero image.
+  - Title, **FULL** tagline (never truncated), rating, **FULL** description.
   - **Trailer Button**: MUST use text **"View Trailer"** (never "View Artwork") and link to the YouTube trailer. Never `href="None"`.
+  - **Book Button**: MUST point to the earliest Veezi session URL.
+  - **Image**: MUST be a Mailchimp-hosted absolute URL containing the 700px proportionally resized image.
 - **Now showing film 1 / 2 / 3 / ...**:
-  - Title, **FULL** tagline (never truncated), rating, **FULL** descriptions, poster URL, book URL.
-  - **Trailer Button**: MUST use text **"View Trailer"** and link to the YouTube trailer. Never `href="None"`. Fallback: `https://deluxecinemas.co.nz/`.
+  - Title, **FULL** tagline (never truncated), rating, **FULL** descriptions, book URL.
+  - **Trailer Button**: MUST use text **"View Trailer"** and link to the YouTube trailer. Never `href="None"`.
+  - **Poster URL**: MUST be a Mailchimp-hosted absolute URL containing the 160x240px resized image.
   - **Sessions (`movie_showtimes`)**: DO NOT use plain text. **Every session time** (e.g., "10:00 AM") MUST be an **HTML link** (`<a href="...">`) to its specific Veezi booking URL.
     - _Format: Mon 23, Mar: [<a href="...">10:00 AM</a>] | Tue 24, Mar: [<a href="...">10:00 AM</a>]_
   - **Description fields**: Replace `movie_description_2` and `movie_description_3` with actual film content or **remove them** if no additional content. NEVER leave PILLION placeholder text.
-- **Coming soon: film one / two / three**: Poster URL, short description, learn-more URL. **KEEP section if no data provided.**
-- **Special event one / two / three**: Title, description, image URL, CTA URL. **KEEP section if no data provided.**
+- **Coming soon: film one / two / three**: Poster URL (Mailchimp-hosted), short description, learn-more URL. **KEEP section if no data provided.**
+- **Special event one / two / three**: Title, description, image URL (Mailchimp-hosted), CTA URL. **KEEP section if no data provided.**
 
 ## Layout & Image Rules (Strict)
 
-- **Featured Films**: Use **Landscape** hero banners (700px wide).
+- **Featured Films**: Use **Landscape** hero banners (700px wide, proper aspect ratio).
 - **Now Showing/Coming Soon**: Use **Portrait** posters (160x240px).
-- **Asset Retrieval**: If a film is not found on MX, **retry search** with variations. DO NOT use placeholders unless multiple search attempts fail.
+- **Asset Retrieval**: If a film is not found on MX, **retry search** with variations. DO NOT use placeholders unless multiple search attempts fail. Default to Deluxe Cinemas official website as your fallback source of truth.
 
 ## Step by Step Instructions
 
-1. **Extraction**: Identify films and target dates using **Veezi**. Extract the **exact booking URL** for every individual session.
-2. **Content Retrieval (MovieXchange)**: Fetch metadata and assets.
-   - **Trailers**: Fetch the YouTube URL. Fall back to the cinema homepage ONLY if no trailer exists on MX.
-   - **Sizing**: Download and resize to **700px wide** (Featured) and **160x240px** (Now Showing) using `magick`.
-3. **Drafting**: Match the prompt data to the **exact `mc:edit` names** in the master template.
+1. **Extraction**: Identify films and target dates using **Veezi**. Extract the **exact booking URL** for every individual session and locate the earliest session URL for the Book Now buttons.
+2. **Content Retrieval (MovieXchange or Deluxe Cinemas)**: Fetch metadata, YouTube trailers, and official images using a headless browser to bypass Angular/Javascript walls.
+3. **Sizing & Hosting**: Download images locally. Resize to **700px wide** proportional (Featured) and **160x240px** strict (Now Showing) using `magick`. Upload to Mailchimp File Manager to get public absolute URLs.
+4. **Drafting**: Match the prompt data to the **exact `mc:edit` names** in the master template.
    - **Critical**: Ensure the header and section GIF headers are correctly set or preserved.
    - **Sessions**: Generate the timeline with individual clickable links inside the `movie_showtimes` tag.
-4. **Omission**: Remove any **repeatable film block** from the HTML if it is explicitly marked as "omit" or if no data exists for it (e.g., if there is no third featured film). **However, NEVER remove entire sections** (Coming Soon section 5, Divider section 6, Special Events section 7, or Footer section 8). If no specific films are provided for Coming Soon or Special Events, keep the section with its template placeholder content.
-5. **Verification & Auto-Fix Loop**:
+5. **Omission**: Remove any **repeatable film block** from the HTML if it is explicitly marked as "omit" or if no data exists for it (e.g., if there is no third featured film). **However, NEVER remove entire sections** (Coming Soon section 5, Divider section 6, Special Events section 7, or Footer section 8). If no specific films are provided for Coming Soon or Special Events, keep the section with its template placeholder content.
+6. **Verification & Auto-Fix Loop**:
    - Spawn a **tester sub-agent** to audit the generated `campaign_email.html`.
    - Audit criteria: Verify compliance with **ALL rules** in `SKILL.md` and `AGENT_MAILER_PROMPT_TEMPLATE.md`.
     - **Crucial checks**:
-      - **Clickable session links**: Every time must have a unique Veezi URL.
+      - **Images**: Verify all `src` tags contain Mailchimp-hosted absolute URLs (`https://mcusercontent.com/...`). Local filenames (`hero.jpg`) or unauthorized hotlinks (`tmdb.org`) are **FAILURES**.
+      - **Clickable session links**: Every time must have a unique Veezi URL. The "Book Now" buttons must point to the earliest session.
       - **GIF Headers**: `now-showing.gif` and `coming-soon.gif` must be images, not text.
       - **Button text**: Must say **"View Trailer"**, never "View Artwork".
       - **Links**: Trailer buttons must link to **YouTube trailers**. `href="None"` is a **FAILURE**, must be fixed.
       - **Preservation**: The **Header image (`header.jpg`)** and link must be present.
       - **Meta-data**: Ensure all films have their **FULL tagline** (no `...` truncation) and **rating** fields populated.
-      - **Dimensions**: Hero banners (700px) and Posters (160x240px) must use correctly sized local assets.
+      - **Dimensions**: Hero banners (700px) and Posters (160x240px) must be correctly resized.
       - **No truncation**: Scan all `mc:edit` text content for `...` at the end. If found, it is a **BUG**, replace with full text.
       - **No stale placeholders**: Scan for "As Colin submits to Ray" or "PILLION" text. If found in a film that is NOT Pillion, it is a **BUG**.
       - **Section completeness**: Verify Coming Soon (section 5), Special Events (section 7), and Footer (section 8) are present in the output HTML.
@@ -134,6 +155,6 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
        4. **Replace and Re-verify**: Update the HTML content and run `check_404.js` again.
    - If any rule is violated, the sub-agent **MUST fix the HTML** and re-verify.
    - Continue the loop until the HTML is **100% compliant**.
-6. **Finalization**: Check **`WORKFLOW_MODE`**.
-   - If **`testing`**: create **draft** and send test to **tester address** only.
-   - If **`production`**: create **draft** and notify user for final approval.
+7. **Finalization**: Check **`WORKFLOW_MODE`**.
+   - If **`testing`**: update **existing draft** and send test to **tester address** only.
+   - If **`production`**: update **draft** and notify user for final approval.
