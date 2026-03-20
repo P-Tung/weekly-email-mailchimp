@@ -1,0 +1,56 @@
+# ===== OS Files =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+
+# ===== Environment & Secrets =====
+.env
+.env.*
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ===== Node / NPM =====
+node_modules/
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+package-lock.json
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== IDE & Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ===== Build / Temp =====
+dist/
+build/
+tmp/
+temp/
+*.tmp
+
+# ===== Archives (don't commit ZIP uploads) =====
+*.zip
+*.tar.gz
+*.rar
+
+# ===== Credentials & Config =====
+credentials.json
+service-account*.json
+*secret*
+*.credentials
+auth.json
