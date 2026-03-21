@@ -1,16 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
+const crypto = require('crypto');
+const { execSync } = require('child_process');
 
 const MC_API_KEY = process.env.MATON_API_KEY || "ZdNbP1Xb6_t3Tp5gJB6oL96eZj-mgkcqTE37vDE4ie8JgfqpPEkmxCT6GAyjzNBNIZZUHHL3OH4QmEuN9tv-rm83SPRv08SfUyIQYkzV4g";
 const MC_BASE_URL = "https://gateway.maton.ai/mailchimp/3.0";
-
 const WORKSPACE_DIR = path.resolve(__dirname, "../");
 
-async function uploadImage(filePath) {
-    const filename = path.basename(filePath);
-    const content = fs.readFileSync(filePath, { encoding: 'base64' });
+async function uploadImage(buffer, filename) {
     console.log(`Uploading ${filename}...`);
+    const content = buffer.toString('base64');
     const res = await fetch(`${MC_BASE_URL}/file-manager/files`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${MC_API_KEY}`, "Content-Type": "application/json" },
@@ -21,12 +21,67 @@ async function uploadImage(filePath) {
     return data.full_size_url;
 }
 
-async function getVeezi() {
+async function fetchImageAndUpload(url, isLandscape) {
+    if (!url || !url.startsWith('http')) return "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg"; // generic fallback
+    
+    console.log("Downloading image:", url);
+    const res = await fetch(url);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    
+    // We could resize with Magick, but since Veezi posters are already ok-ish, we'll just upload to save complexity. Mailchimp will display them in the constrained table cell.
+    // If we want exact resize:
+    const tempIn = path.join(WORKSPACE_DIR, `temp_in_${Date.now()}.jpg`);
+    const tempOut = path.join(WORKSPACE_DIR, `temp_out_${Date.now()}.jpg`);
+    fs.writeFileSync(tempIn, buffer);
+    
+    try {
+        if (isLandscape) {
+            execSync(`convert "${tempIn}" -resize 700x "${tempOut}"`);
+        } else {
+            execSync(`convert "${tempIn}" -resize 160x240! "${tempOut}"`);
+        }
+        const resizedBuffer = fs.readFileSync(tempOut);
+        const cdn = await uploadImage(resizedBuffer, path.basename(tempOut));
+        fs.unlinkSync(tempIn);
+        fs.unlinkSync(tempOut);
+        return cdn;
+    } catch (e) {
+        console.warn("Resize failed, uploading original:", e.message);
+        fs.unlinkSync(tempIn);
+        return await uploadImage(buffer, "poster.jpg");
+    }
+}
+
+async function getVeeziSessions() {
     const res = await fetch("https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym");
     const html = await res.text();
     const match = html.match(/\[{"@type":"VisualArtsEvent".*?\}\]/);
     if (!match) throw new Error("Could not find Veezi JSON-LD");
     return JSON.parse(match[0]);
+}
+
+async function getVeeziMetadata() {
+    console.log("Scraping metadata from Veezi HTML...");
+    const res = await fetch("https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym");
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    const meta = {};
+    $('h3.title').each((i, el) => {
+        const title = $(el).text().trim();
+        const container = $(el).closest('div');
+        const prev = container.prevAll('.poster-container').first();
+        let posterUrl = prev.find('img.poster').attr('src');
+        if (posterUrl && !posterUrl.startsWith('http')) posterUrl = "https://ticketing.oz.veezi.com" + posterUrl;
+        
+        const rating = container.find('.censor').text().trim() || "TBC";
+        const synopsis = container.find('.film-desc').text().trim();
+        
+        if (!meta[title] || (!meta[title].synopsis && synopsis)) {
+            meta[title] = { title, posterUrl, rating, synopsis };
+        }
+    });
+    return meta;
 }
 
 function formatDate(iso) {
@@ -46,11 +101,9 @@ async function main() {
     if (!payloadFile) throw new Error("Usage: node build_and_push.js <payload.json>");
     const payload = JSON.parse(fs.readFileSync(payloadFile, "utf-8"));
 
-    console.log("Fetching live Veezi sessions...");
-    const sessions = await getVeezi();
+    const sessions = await getVeeziSessions();
+    const metadata = await getVeeziMetadata();
     
-    // Naive parsing of target dates from payload string like "March 25 to March 29"
-    // Since we're writing a robust script, let's just use regex to extract dates.
     const monthMap = { "jan": 0, "feb": 1, "mar": 2, "apr": 3, "may": 4, "jun": 5, "jul": 6, "aug": 7, "sep": 8, "oct": 9, "nov": 10, "dec": 11 };
     const dateMatch = payload.dates.toLowerCase().match(/([a-z]+)\s+(\d+).*?([a-z]+)?\s+(\d+)/);
     let startMonth = dateMatch ? monthMap[dateMatch[1]] : 2;
@@ -61,157 +114,105 @@ async function main() {
     const targetSessions = sessions.filter(s => {
         const d = new Date(s.startDate);
         const md = d.getMonth() * 100 + d.getDate();
-        return md >= (startMonth * 100 + startDay) && md <= (endMonth * 100 + endDay) && d.getFullYear() === 2026; // Adjust year logically if needed
+        return md >= (startMonth * 100 + startDay) && md <= (endMonth * 100 + endDay) && d.getFullYear() === 2026;
     });
 
-    // Load HTML Template
     const templatePath = path.join(WORKSPACE_DIR, "goal-example", "goal-example.html");
     const html = fs.readFileSync(templatePath, "utf-8");
-    const $ = cheerio.load(html, { decodeEntities: false }); // preserve HTML entities
-
-    // Replace Date
-    const oldHtmlStr = html;
-    let newHtmlStr = oldHtmlStr.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
     
-    // We can use Cheerio to safely swap blocks. But Mailchimp templates are deeply nested tables.
-    // Instead of completely generic parsing, we'll locate the <tr> nodes that contain the titles.
+    // Replace Date Globally
+    let newHtmlStr = html.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
+
+    // Grab blocks from template
+    const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
+    const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
+    const nsStart = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING"); 
+    const csStart = newHtmlStr.indexOf("<!-- ========== 5. COMING SOON");
     
-    // Example: Update the Date inside intro_text_box
-    $('[mc\\:edit="intro_text_top"]').text(`For the week of ${payload.dates}`);
-
-    // Fetch and cache the featured/now showing blocks from the template
-    // Featured Films (Look for "FEATURED FILM ONE")
-    // This is complex in table-based emails. We'll do string extraction for blocks to guarantee Mailchimp structure is kept, OR use cheerio properly.
-    // For stability and 100% guarantee of Mailchimp tag preservation, cheerio manipulating the DOM tree is best.
-    
-    // ... Actually, the easiest perfectly robust way for this specific Mailchimp template is to use the existing block string splitting logic but correctly boundary-checked!
-    // But since the user specifically asked for Cheerio robust parsing:
-    // Every film has an `mc:edit="movie_title_X"`. We can find the closest `table` that represents the film block.
-
-    console.log("Generating campaign from payload...");
-
-    // Find all film title elements
-    let titles = [];
-    $('[mc\\:edit^="movie_title"]').each((i, el) => {
-        titles.push({ 
-            el: $(el), 
-            text: $(el).text().trim(), 
-            tag: $(el).attr('mc:edit') 
-        });
-    });
-
-    // We have a list of available film block tables in the template.
-    // We map them to the payload.
-
-    // To prevent script from becoming a 200 line parsing engine for Mailchimp, I'll use our proven exact string boundary logic that we fixed, wrapped in the Node script.
-    // Cheerio is used here to upload images and replace links securely inside those blocks!
-
-    let templateStr = newHtmlStr;
-    const f1Start = templateStr.indexOf("<!-- FEATURED FILM ONE");
-    const f2Start = templateStr.indexOf("<!-- FEATURED FILM TWO");
-    const nsStart = templateStr.indexOf("<!-- ========== 4. NOW SHOWING"); 
-    
-    let f1Block = templateStr.substring(f1Start, f2Start);
-    let f2Block = templateStr.substring(f2Start, nsStart);
-    
-    // Assign payload featured films
-    const fFilms = payload.featured_films;
-    let newF1Block = fFilms[0] === "Project Hail Mary" ? f1Block : f2Block;
-    let newF2Block = fFilms[1] === "I Swear" ? f2Block : f1Block;
-    // (If they are standard, we should replace titles. The template already has "I Swear" and "Project Hail Mary" hardcoded.
-    // We swap blocks if needed based on title text.)
-    if (f1Block.includes(fFilms[0])) { newF1Block = f1Block; newF2Block = f2Block; }
-    else { newF1Block = f2Block.replace(/FEATURED FILM TWO/g, "FEATURED FILM ONE").replace(/featured_film_two/g, "featured_film_one"); newF2Block = f1Block.replace(/FEATURED FILM ONE/g, "FEATURED FILM TWO").replace(/featured_film_one/g, "featured_film_two"); }
-
-    const csStart = templateStr.indexOf("<!-- ========== 5. COMING SOON");
-    const nsHeaderContent = templateStr.substring(nsStart, templateStr.indexOf("<!-- NOW SHOWING FILM 1"));
-    const nsContent = templateStr.substring(templateStr.indexOf("<!-- NOW SHOWING FILM 1"), csStart);
-    
+    const baseF1Block = newHtmlStr.substring(f1Start, f2Start);
+    // Grab the first NS block to use as a dynamic template
+    const nsContent = newHtmlStr.substring(newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"), csStart);
     const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
-    
-    // Map existing NS blocks by title
-    const blockMap = {};
-    for (const b of nsBlocks) {
-        if (b.includes("Turner and Constable")) blockMap["Turner and Constable"] = b;
-        if (b.includes("Tenor")) blockMap["Tenor"] = b;
-        if (b.includes("Elvis Presley in concert") || b.includes("EPiC")) blockMap["Epic: Elvis Presley in concert"] = b;
-        if (b.includes("Holy Days") || b.includes("Holy days")) blockMap["Holy days"] = b;
-        if (b.includes("Mid-Winter Break") || b.includes("Midwinter Break")) blockMap["Mid-Winter Break"] = b;
-        if (b.includes("Fackham Hall")) blockMap["Fackham Hall"] = b;
-    }
+    const baseNsBlock = nsBlocks[0]; // Turner block
 
-    let orderedNsBlocks = [];
-    payload.now_showing.forEach((title, i) => {
-        let titleKey = Object.keys(blockMap).find(k => title.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(title.toLowerCase()));
-        if (!titleKey) {
-            // Failsafe
-            titleKey = Object.keys(blockMap)[i];
-        }
-        let block = blockMap[titleKey];
-        // Re-index
-        block = block.replace(/<!-- NOW SHOWING FILM \d+/, `<!-- NOW SHOWING FILM ${i+1}`);
-        const match = block.match(/mc:edit="movie_title_(\d+)"/);
-        if (match) {
-            const oldIdx = match[1];
-            block = block.replace(new RegExp(`_${oldIdx}"`, 'g'), `_${i+1}"`);
-        }
-        orderedNsBlocks.push(block);
-    });
-
-    const updatedBlocks = [newF1Block, newF2Block, ...orderedNsBlocks];
-    const allTitles = [...fFilms, ...payload.now_showing];
-
-    // Cheerio Processing for each block to safely update links, images, and times
-    for (let i = 0; i < updatedBlocks.length; i++) {
-        let blockHtml = updatedBlocks[i];
-        let vName = allTitles[i];
+    async function buildBlock(filmTitle, baseTemplate, isFeatured, index) {
+        // Find metadata
+        const vKey = Object.keys(metadata).find(k => k.toLowerCase().includes(filmTitle.toLowerCase()) || filmTitle.toLowerCase().includes(k.toLowerCase()));
+        const meta = vKey ? metadata[vKey] : { title: filmTitle, rating: "TBC", synopsis: filmTitle + " is showing at Deluxe Cinemas.", posterUrl: null };
         
-        let mSessions = targetSessions.filter(s => s.name.toLowerCase().includes(vName.toLowerCase()) || vName.toLowerCase().includes(s.name.toLowerCase()));
-        if (vName === "Tenor") mSessions = targetSessions.filter(s => s.name.includes("Tenor"));
-        if (vName === "Turner and Constable") mSessions = targetSessions.filter(s => s.name.includes("Turner"));
-        if (vName === "Epic: Elvis Presley in concert") mSessions = targetSessions.filter(s => s.name.includes("EPiC"));
-
+        let mSessions = targetSessions.filter(s => s.name.toLowerCase().includes(filmTitle.toLowerCase()) || filmTitle.toLowerCase().includes(s.name.toLowerCase()));
         mSessions.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
         
-        let showtimesHtml = mSessions.map(s => {
-            return `<a href="${s.url}" target="_blank" style="color: #6b6b6b; text-decoration: none; font-weight: bold;">${formatDate(s.startDate)}</a>`;
-        }).join(" | ");
+        let showtimesHtml = mSessions.map(s => `<a href="${s.url}" target="_blank" style="color: #6b6b6b; text-decoration: none; font-weight: bold;">${formatDate(s.startDate)}</a>`).join(" | ");
         if (showtimesHtml === "") showtimesHtml = "Check website for times.";
-
         const earliestUrl = mSessions.length > 0 ? mSessions[0].url : "https://deluxecinemas.co.nz/";
 
-        const $b = cheerio.load(blockHtml, null, false);
+        let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured);
+
+        const $b = cheerio.load(baseTemplate, null, false);
         
-        // 1. Upload local images to CDN and replace src
-        const imgs = $b('img');
-        for (let j = 0; j < imgs.length; j++) {
-            let src = $b(imgs[j]).attr('src');
-            if (src && !src.startsWith('http')) {
-                // Must be local
-                let localPath = path.join(WORKSPACE_DIR, "goal-example", src);
-                if (fs.existsSync(localPath)) {
-                    let cdnUrl = await uploadImage(localPath);
-                    $b(imgs[j]).attr('src', cdnUrl);
-                }
-            }
-        }
+        // Update tags
+        let tagTitle = isFeatured ? 'featured_film_title' : 'movie_title';
+        let tagDesc = isFeatured ? 'featured_film_description' : 'movie_description';
+        let tagRating = isFeatured ? 'featured_film_rating' : 'movie_rating';
+        let tagPoster = isFeatured ? 'featured_film_image' : 'movie_poster';
+        let tagShowtimes = isFeatured ? 'featured_film_showtimes' : 'movie_showtimes'; // Note: template might differ
+        
+        $b(`[mc\\:edit="${tagTitle}"]`).text(meta.title);
+        $b(`[mc\\:edit="${tagRating}"]`).text(meta.rating);
+        
+        // Extract tagline from synopsis (first sentence)
+        let parts = meta.synopsis.split(/[.?!] /);
+        let tagline = parts[0] ? parts[0] + "." : "";
+        let desc = parts.slice(1).join(". ") || meta.synopsis;
+        
+        let tagTagline = isFeatured ? 'featured_film_tagline' : 'movie_tagline';
+        $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
+        $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>"); // Basic injection
+        
+        // Replace image
+        $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
+        
+        // Replace showtimes
+        $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); // usually always movie_showtimes
 
-        // 2. Inject showtimes
-        $b('[mc\\:edit^="movie_showtimes"]').html(showtimesHtml);
-
-        // 3. Inject earliest book now url
+        // Replace URLs
         $b('a:contains("Book now")').attr('href', earliestUrl);
-        $b('a:has(img[mc\\:edit^="movie_poster"])').attr('href', earliestUrl);
-        $b('a:has(img[mc\\:edit^="featured_film_image"])').attr('href', earliestUrl);
+        $b('a:contains("View Trailer")').attr('href', "https://deluxecinemas.co.nz/"); // Fallback per skill
+        $b(`a:has(img[mc\\:edit="${tagPoster}"])`).attr('href', earliestUrl);
 
-        updatedBlocks[i] = $b.html();
+        let finalHtml = $b.html();
+        
+        // Ensure index alignment (e.g. FEATURED FILM ONE)
+        if (isFeatured) {
+            let numStr = index === 1 ? "ONE" : "TWO";
+            let lowerStr = index === 1 ? "one" : "two";
+            finalHtml = finalHtml.replace(/FEATURED FILM ONE/g, `FEATURED FILM ${numStr}`).replace(/featured_film_one/g, `featured_film_${lowerStr}`);
+        } else {
+            finalHtml = finalHtml.replace(/<!-- NOW SHOWING FILM 1/, `<!-- NOW SHOWING FILM ${index}`);
+            finalHtml = finalHtml.replace(/_1"/g, `_${index}"`);
+        }
+        
+        return finalHtml;
     }
 
-    let newNsContent = nsHeaderContent + updatedBlocks.slice(2).join("");
-    let finalHtml = templateStr.substring(0, f1Start) + updatedBlocks[0] + updatedBlocks[1] + newNsContent + templateStr.substring(csStart);
+    console.log("Building Featured Films...");
+    let updatedFeatured = [];
+    for (let i = 0; i < payload.featured_films.length; i++) {
+        updatedFeatured.push(await buildBlock(payload.featured_films[i], baseF1Block, true, i+1));
+    }
+
+    console.log("Building Now Showing Films...");
+    let updatedNowShowing = [];
+    for (let i = 0; i < payload.now_showing.length; i++) {
+        updatedNowShowing.push(await buildBlock(payload.now_showing[i], baseNsBlock, false, i+1));
+    }
+
+    let newNsContent = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1")) + updatedNowShowing.join("");
+    let finalHtml = newHtmlStr.substring(0, f1Start) + updatedFeatured.join("") + newNsContent + newHtmlStr.substring(csStart);
     
-    fs.writeFileSync(path.join(WORKSPACE_DIR, "final_campaign.html"), finalHtml);
-    console.log("Successfully rebuilt final_campaign.html");
+    fs.writeFileSync(path.join(WORKSPACE_DIR, "final_dynamic_campaign.html"), finalHtml);
+    console.log("Successfully rebuilt final_dynamic_campaign.html");
     
     // Mailchimp Push
     const campRes = await fetch(`${MC_BASE_URL}/campaigns?status=save`, { headers: { "Authorization": `Bearer ${MC_API_KEY}` } });
