@@ -138,7 +138,7 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
    - **Sessions**: Generate the timeline with individual clickable links inside the `movie_showtimes` tag.
 5. **Omission**: Remove any **repeatable film block** from the HTML if it is explicitly marked as "omit" or if no data exists for it (e.g., if there is no third featured film). **However, NEVER remove entire sections** (Coming Soon section 5, Divider section 6, Special Events section 7, or Footer section 8). If no specific films are provided for Coming Soon or Special Events, keep the section with its template placeholder content.
 6. **Verification & Auto-Fix Loop**:
-   - We will not spawn a sub-agent for this skill. You must audit the generated `campaign_email.html`.
+   - We will not spawn a sub-agent for this skill. You must audit the generated HTML.
    - Audit criteria: Verify compliance with **ALL rules** in `SKILL.md` and `AGENT_MAILER_PROMPT_TEMPLATE.md`.
     - **Crucial checks**:
       - **Images**: Verify all `src` tags contain Mailchimp-hosted absolute URLs (`https://mcusercontent.com/...`). Local filenames (`hero.jpg`) or unauthorized hotlinks (`tmdb.org`) are **FAILURES**.
@@ -154,8 +154,8 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
       - **Section completeness**: Verify Coming Soon (section 5), Special Events (section 7), and Footer (section 8) are present in the output HTML.
       - **Footer integrity**: Verify the footer contains: contact grid (phone, website, email, facebook), unsubscribe links, red location strip, and map image.
    - **404 Link & Asset Check (Crucial)**:
-     - You MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in `campaign_email.html`.
-     - **Command**: `node check_404.js campaign_email.html`
+     - You MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in the generated HTML. (Save the HTML to a temporary file like `temp_email.html` first).
+     - **Command**: `node check_404.js temp_email.html`
      - If any link or image returns a **404**, **FILE_NOT_FOUND**, or **ERR_NAME_NOT_RESOLVED**:
        1. **List all broken links** clearly for the next step.
        2. **Find it again**: Search **MovieXchange** or **Veezi** for the correct asset or link.

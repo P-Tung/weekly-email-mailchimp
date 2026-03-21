@@ -8,7 +8,12 @@ const http = require('http');
  * Usage: node check_404.js <path_to_html_file>
  */
 
-const campaignFile = process.argv[2] || 'campaign_email.html';
+const campaignFile = process.argv[2];
+
+if (!campaignFile) {
+  console.error('Usage: node check_404.js <path_to_html_file>');
+  process.exit(1);
+}
 
 if (!fs.existsSync(campaignFile)) {
   console.error(`File not found: ${campaignFile}`);
