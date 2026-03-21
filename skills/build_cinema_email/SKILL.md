@@ -11,7 +11,7 @@ requires:
 # Build Cinema Email Skill
 
 **Overview:**
-This skill guides you to build or update the **cinema email master template** by combining the **Core System Flow** with the **HTML Prompt Template** rules.
+This skill guides you to build or update the **cinema email**. You MUST reference **BOTH** the **User's Goal Prompt** (which provides the execution context, dates, and specific films to include) **AND** the **Master Template** (`cinema-email-master-template-2.html`). You need to use the goal prompt to understand *what* content is required, and the master template to understand *where* and *how* to fill it in to reach the goal. Additionally, you MUST refer to the **benchmark expected result** located at `goal-example/goal-example.html` to understand exactly how the final HTML output should be formatted based on the prompt's film list and dates.
 
 **Important rules:**
 
