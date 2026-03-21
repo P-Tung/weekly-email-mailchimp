@@ -1,0 +1,23 @@
+{
+  "name": "weekly-email-mailchimp",
+  "version": "1.0.0",
+  "description": "Please read the AGENT_MAILER_PROMPT_TEMPLATE.md file to work",
+  "main": "check_404.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/P-Tung/weekly-email-mailchimp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/P-Tung/weekly-email-mailchimp/issues"
+  },
+  "homepage": "https://github.com/P-Tung/weekly-email-mailchimp#readme",
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
+}
