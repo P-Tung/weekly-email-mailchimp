@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
-const crypto = require('crypto');
 const { execSync } = require('child_process');
 
 const MC_API_KEY = process.env.MATON_API_KEY || "ZdNbP1Xb6_t3Tp5gJB6oL96eZj-mgkcqTE37vDE4ie8JgfqpPEkmxCT6GAyjzNBNIZZUHHL3OH4QmEuN9tv-rm83SPRv08SfUyIQYkzV4g";
@@ -9,7 +8,7 @@ const MC_BASE_URL = "https://gateway.maton.ai/mailchimp/3.0";
 const WORKSPACE_DIR = path.resolve(__dirname, "../");
 
 async function uploadImage(buffer, filename) {
-    console.log(`Uploading ${filename}...`);
+    console.log(`Uploading ${filename} to Mailchimp...`);
     const content = buffer.toString('base64');
     const res = await fetch(`${MC_BASE_URL}/file-manager/files`, {
         method: "POST",
@@ -21,15 +20,36 @@ async function uploadImage(buffer, filename) {
     return data.full_size_url;
 }
 
-async function fetchImageAndUpload(url, isLandscape) {
-    if (!url || !url.startsWith('http')) return "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg"; // generic fallback
+async function getTMDBBanner(title) {
+    console.log(`Searching TMDB for high-res banner: ${title}`);
+    try {
+        const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const html = await res.text();
+        const match = html.match(/href="(\/movie\/\d+[^"]*)"/);
+        if (match) {
+            const mRes = await fetch(`https://www.themoviedb.org${match[1]}`, { headers: { "User-Agent": "Mozilla/5.0" }});
+            const mHtml = await mRes.text();
+            const bMatch = mHtml.match(/url\('([^']+w1920[^']+)'\)/);
+            if (bMatch) return bMatch[1];
+        }
+    } catch(e) {}
+    return null;
+}
+
+async function fetchImageAndUpload(url, isLandscape, title) {
+    let finalUrl = url;
+    if (isLandscape) {
+        // Fetch high res banner to prevent distortion
+        const tmdbBanner = await getTMDBBanner(title);
+        if (tmdbBanner) finalUrl = tmdbBanner;
+    }
+
+    if (!finalUrl || !finalUrl.startsWith('http')) return "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg"; 
     
-    console.log("Downloading image:", url);
-    const res = await fetch(url);
+    console.log(`Downloading image: ${finalUrl}`);
+    const res = await fetch(finalUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
     const buffer = Buffer.from(await res.arrayBuffer());
     
-    // We could resize with Magick, but since Veezi posters are already ok-ish, we'll just upload to save complexity. Mailchimp will display them in the constrained table cell.
-    // If we want exact resize:
     const tempIn = path.join(WORKSPACE_DIR, `temp_in_${Date.now()}.jpg`);
     const tempOut = path.join(WORKSPACE_DIR, `temp_out_${Date.now()}.jpg`);
     fs.writeFileSync(tempIn, buffer);
@@ -61,7 +81,6 @@ async function getVeeziSessions() {
 }
 
 async function getVeeziMetadata() {
-    console.log("Scraping metadata from Veezi HTML...");
     const res = await fetch("https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym");
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -104,39 +123,39 @@ async function main() {
     const sessions = await getVeeziSessions();
     const metadata = await getVeeziMetadata();
     
+    // Fix Bug 1: Robust Date Parsing
     const monthMap = { "jan": 0, "feb": 1, "mar": 2, "apr": 3, "may": 4, "jun": 5, "jul": 6, "aug": 7, "sep": 8, "oct": 9, "nov": 10, "dec": 11 };
     const dateMatch = payload.dates.toLowerCase().match(/([a-z]+)\s+(\d+).*?([a-z]+)?\s+(\d+)/);
-    let startMonth = dateMatch ? monthMap[dateMatch[1]] : 2;
+    
+    let startMonth = dateMatch ? monthMap[dateMatch[1].substring(0,3)] : 2;
     let startDay = dateMatch ? parseInt(dateMatch[2]) : 25;
-    let endMonth = dateMatch && dateMatch[3] ? monthMap[dateMatch[3]] : startMonth;
+    let endMonth = dateMatch && dateMatch[3] ? monthMap[dateMatch[3].substring(0,3)] : startMonth;
     let endDay = dateMatch ? parseInt(dateMatch[4]) : 29;
+
+    const targetStart = new Date(Date.UTC(2026, startMonth, startDay, 0, 0, 0));
+    const targetEnd = new Date(Date.UTC(2026, endMonth, endDay, 23, 59, 59));
 
     const targetSessions = sessions.filter(s => {
         const d = new Date(s.startDate);
-        const md = d.getMonth() * 100 + d.getDate();
-        return md >= (startMonth * 100 + startDay) && md <= (endMonth * 100 + endDay) && d.getFullYear() === 2026;
+        return d >= targetStart && d <= targetEnd;
     });
 
     const templatePath = path.join(WORKSPACE_DIR, "goal-example", "goal-example.html");
     const html = fs.readFileSync(templatePath, "utf-8");
     
-    // Replace Date Globally
     let newHtmlStr = html.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
 
-    // Grab blocks from template
     const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
     const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
     const nsStart = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING"); 
     const csStart = newHtmlStr.indexOf("<!-- ========== 5. COMING SOON");
     
     const baseF1Block = newHtmlStr.substring(f1Start, f2Start);
-    // Grab the first NS block to use as a dynamic template
     const nsContent = newHtmlStr.substring(newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"), csStart);
     const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
-    const baseNsBlock = nsBlocks[0]; // Turner block
+    const baseNsBlock = nsBlocks[0]; 
 
     async function buildBlock(filmTitle, baseTemplate, isFeatured, index) {
-        // Find metadata
         const vKey = Object.keys(metadata).find(k => k.toLowerCase().includes(filmTitle.toLowerCase()) || filmTitle.toLowerCase().includes(k.toLowerCase()));
         const meta = vKey ? metadata[vKey] : { title: filmTitle, rating: "TBC", synopsis: filmTitle + " is showing at Deluxe Cinemas.", posterUrl: null };
         
@@ -147,43 +166,35 @@ async function main() {
         if (showtimesHtml === "") showtimesHtml = "Check website for times.";
         const earliestUrl = mSessions.length > 0 ? mSessions[0].url : "https://deluxecinemas.co.nz/";
 
-        let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured);
+        // Fix Bug 2: Fetch TMDB High Res Banners for Featured Films
+        let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured, meta.title);
 
         const $b = cheerio.load(baseTemplate, null, false);
         
-        // Update tags
         let tagTitle = isFeatured ? 'featured_film_title' : 'movie_title';
         let tagDesc = isFeatured ? 'featured_film_description' : 'movie_description';
         let tagRating = isFeatured ? 'featured_film_rating' : 'movie_rating';
         let tagPoster = isFeatured ? 'featured_film_image' : 'movie_poster';
-        let tagShowtimes = isFeatured ? 'featured_film_showtimes' : 'movie_showtimes'; // Note: template might differ
         
         $b(`[mc\\:edit="${tagTitle}"]`).text(meta.title);
         $b(`[mc\\:edit="${tagRating}"]`).text(meta.rating);
         
-        // Extract tagline from synopsis (first sentence)
         let parts = meta.synopsis.split(/[.?!] /);
         let tagline = parts[0] ? parts[0] + "." : "";
         let desc = parts.slice(1).join(". ") || meta.synopsis;
         
         let tagTagline = isFeatured ? 'featured_film_tagline' : 'movie_tagline';
         $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
-        $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>"); // Basic injection
+        $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
         
-        // Replace image
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
-        // Replace showtimes
-        $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); // usually always movie_showtimes
-
-        // Replace URLs
+        $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); 
         $b('a:contains("Book now")').attr('href', earliestUrl);
-        $b('a:contains("View Trailer")').attr('href', "https://deluxecinemas.co.nz/"); // Fallback per skill
+        $b('a:contains("View Trailer")').attr('href', "https://deluxecinemas.co.nz/");
         $b(`a:has(img[mc\\:edit="${tagPoster}"])`).attr('href', earliestUrl);
 
         let finalHtml = $b.html();
-        
-        // Ensure index alignment (e.g. FEATURED FILM ONE)
         if (isFeatured) {
             let numStr = index === 1 ? "ONE" : "TWO";
             let lowerStr = index === 1 ? "one" : "two";
@@ -214,7 +225,6 @@ async function main() {
     fs.writeFileSync(path.join(WORKSPACE_DIR, "final_dynamic_campaign.html"), finalHtml);
     console.log("Successfully rebuilt final_dynamic_campaign.html");
     
-    // Mailchimp Push
     const campRes = await fetch(`${MC_BASE_URL}/campaigns?status=save`, { headers: { "Authorization": `Bearer ${MC_API_KEY}` } });
     const campData = await campRes.json();
     if (campData.campaigns && campData.campaigns.length > 0) {
@@ -231,8 +241,6 @@ async function main() {
             body: JSON.stringify({ test_emails: [payload.test_email], send_type: "html" })
         });
         console.log("Test email sent!", testRes.status);
-    } else {
-        console.log("No drafts found.");
     }
 }
 main().catch(console.error);
