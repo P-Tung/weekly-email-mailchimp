@@ -1,6 +1,11 @@
 ---
 name: Build Cinema Email
 description: A skill to build or update the cinema email using the master template and specific section names.
+requires:
+  bins:
+    - curl
+    - magick
+    - node
 ---
 
 # Build Cinema Email Skill
