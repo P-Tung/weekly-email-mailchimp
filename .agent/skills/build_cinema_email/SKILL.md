@@ -65,7 +65,7 @@ This skill guides you to build or update the **cinema email master template** by
   - Now Showing film comments MUST use incrementing numbers: `NOW SHOWING FILM 1`, `NOW SHOWING FILM 2`, `NOW SHOWING FILM 3`, etc.
   - Do NOT repeat the same number (e.g., do not have multiple `NOW SHOWING FILM 2` comments).
 
-## Core Systems & Sub-Agent Roles
+## Core Systems Roles
 
 > **IMPORTANT: DO NOT install external dependencies** (e.g., Puppeteer, Playwright, Selenium).
 > Use your **built-in browser tools** (`browser_subagent`, `read_url_content`, etc.) to scrape websites.
@@ -75,7 +75,7 @@ This skill guides you to build or update the **cinema email master template** by
    - Determine showing films and **unique deep links** for every individual session.
    - Truth source for what is actually playing in the target date range.
    - **URL**: `https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym`
-   - **How to scrape**: Use `browser_subagent` to open the Veezi sessions page. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page. Find the **earliest session** URL for the Book Now buttons.
+   - **How to scrape**: We will not spawn a sub-agent for this skill. Fetch the Veezi sessions page directly. Click "Sort by date" to view sessions day by day. For each day in the target range, collect every film's session times and their individual booking URLs (format: `https://ticketing.oz.veezi.com/purchase/XXXXX?siteToken=...`). You can also use `execute_browser_javascript` to extract DOM data programmatically from the page. Find the **earliest session** URL for the Book Now buttons.
 2. **MovieXchange (Researcher) / Deluxe Cinemas Fallback**:
    - Source for official titles, ratings, synopses, trailers, and media.
    - **How to scrape (M2M API - PREFERRED)**: Instead of scraping the Angular SPA (which is blocked by hCaptcha), you MUST authenticate directly against the MovieXchange API using standard OAuth2.
@@ -133,7 +133,7 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
    - **Sessions**: Generate the timeline with individual clickable links inside the `movie_showtimes` tag.
 5. **Omission**: Remove any **repeatable film block** from the HTML if it is explicitly marked as "omit" or if no data exists for it (e.g., if there is no third featured film). **However, NEVER remove entire sections** (Coming Soon section 5, Divider section 6, Special Events section 7, or Footer section 8). If no specific films are provided for Coming Soon or Special Events, keep the section with its template placeholder content.
 6. **Verification & Auto-Fix Loop**:
-   - Spawn a **tester sub-agent** to audit the generated `campaign_email.html`.
+   - We will not spawn a sub-agent for this skill. You must audit the generated `campaign_email.html`.
    - Audit criteria: Verify compliance with **ALL rules** in `SKILL.md` and `AGENT_MAILER_PROMPT_TEMPLATE.md`.
     - **Crucial checks**:
       - **Images**: Verify all `src` tags contain Mailchimp-hosted absolute URLs (`https://mcusercontent.com/...`). Local filenames (`hero.jpg`) or unauthorized hotlinks (`tmdb.org`) are **FAILURES**.
@@ -149,14 +149,14 @@ _Refer to AGENT_MAILER_PROMPT_TEMPLATE.md for exact field requirements._
       - **Section completeness**: Verify Coming Soon (section 5), Special Events (section 7), and Footer (section 8) are present in the output HTML.
       - **Footer integrity**: Verify the footer contains: contact grid (phone, website, email, facebook), unsubscribe links, red location strip, and map image.
    - **404 Link & Asset Check (Crucial)**:
-     - The sub-agent MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in `campaign_email.html`.
+     - You MUST run the `check_404.js` script to verify all `<a>` links and `<img>` src paths in `campaign_email.html`.
      - **Command**: `node check_404.js campaign_email.html`
      - If any link or image returns a **404**, **FILE_NOT_FOUND**, or **ERR_NAME_NOT_RESOLVED**:
        1. **List all broken links** clearly for the next step.
        2. **Find it again**: Search **MovieXchange** or **Veezi** for the correct asset or link.
        3. **Fallback**: If the official asset is still 404, look for an alternative (e.g., fallback to the cinema homepage for a broken trailer).
        4. **Replace and Re-verify**: Update the HTML content and run `check_404.js` again.
-   - If any rule is violated, the sub-agent **MUST fix the HTML** and re-verify.
+   - If any rule is violated, you **MUST fix the HTML** and re-verify.
    - Continue the loop until the HTML is **100% compliant**.
 7. **Finalization**: Check **`WORKFLOW_MODE`**.
    - If **`testing`**: update **existing draft** and send test to **tester address** only.
