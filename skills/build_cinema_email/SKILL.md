@@ -1,12 +1,19 @@
 ---
 name: Build Cinema Email
-description: A 1-shot robust skill to build the cinema email by creating a JSON payload and running the build script.
+description: A 1-shot robust skill to build the cinema email by creating a JSON payload and running the dynamic build script.
 ---
 
 # Build Cinema Email Skill
 
 **Overview:**
-This skill allows you to build and push the cinema email campaign in one perfect shot. The repository now includes a robust Node.js script that automatically parses the HTML template, queries the Veezi live session API, resizes/uploads local images to the Mailchimp CDN, dynamically injects the showtimes, reorders the HTML blocks to match your requested film list, and pushes to your Mailchimp draft.
+This skill allows you to build and push the cinema email campaign in one perfect shot. The repository uses a robust, **fully dynamic Node.js script** (`scripts/build_and_push.js`) that automatically:
+- Scrapes the Veezi live session API to get real-time showtimes.
+- Scrapes the official Veezi film pages to extract brand new **Titles, Posters, Ratings (Censors), and Synopses** for any new film in the payload.
+- Dynamically resizes (via ImageMagick) and uploads new posters directly to the Mailchimp CDN.
+- Injects this fresh data into the HTML master template and pushes to your Mailchimp draft.
+
+**CRITICAL RULE:** 
+**Do NOT** attempt to manually edit the HTML, manually scrape data, or just reorder static blocks from `goal-example.html`. The `goal-example.html` is just a structural template. The `build_and_push.js` script handles 100% of the dynamic data fetching for any new film.
 
 **How to Execute (1-Shot Workflow):**
 
@@ -29,5 +36,5 @@ This skill allows you to build and push the cinema email campaign in one perfect
    ```
 3. Run the following command exactly as written:
    `cd weekly-email-mailchimp && npm install && node scripts/build_and_push.js campaign_payload.json`
-4. The script will automatically fetch Veezi, handle Mailchimp uploads, reorder the HTML via Cheerio, and fire the test email.
+4. The script will automatically scrape the new metadata, handle Mailchimp uploads, compile the HTML via Cheerio, and fire the test email.
 5. Wait for the script to finish executing and then report success to the user!
