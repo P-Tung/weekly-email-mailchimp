@@ -25,13 +25,17 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
     *   **Layout**: Generate a **2x5 grid** of posters (2 rows, 5 posters each, up to 10 total).
     *   **Finding Posters**: The AI agent extracts the high-res portrait posters from each URL provided in the prompt and populates the grid.
     *   **Flex/Grid CSS**: Use a centered container with gap/spacing to create a premium, balanced layout.
+    *   **Poster Styling**: 
+        *   **Aspect Ratio**: Each poster container must strictly maintain a **2:3 aspect ratio** (e.g., 200px wide by 300px tall) to match standard film posters.
+        *   **No Cropping**: Use `object-fit: contain` or ensure the container size matches the poster ratio exactly to **avoid cropping** the title or credits.
+        *   **Border**: Apply a **thin golden border** (approx. 2-4px, Color: `#bfa888`) and subtle rounded corners.
     *   **Background**: Use a dark, elegant radial-sunburst or thematic background to highlight the posters.
     *   **Header/Footer Configuration**: 
         *   **Header**: Leave **blank** for now (maintain the space, but do not add text/graphics).
         *   **Footer**: Leave **blank** for now (maintain the space, but do not add text/graphics).
     *   **Technical Specs**:
         *   **Export Type**: **JPG** (High quality).
-        *   **Size**: **1200 x 1200 px** (Square ratio).
+        *   **Size**: **1675 x 1547 px** (Production Standard).
 
 3.  **Step 3: Output Final JPG Path (Development Phase)**
     *   **Skip Posting**: Do **NOT** push to Facebook yet as we are in the development and feedback phase.
