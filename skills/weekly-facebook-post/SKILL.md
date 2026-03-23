@@ -21,15 +21,20 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **Path**: Use the file located at `./skills/weekly-facebook-post/template-fb.png`.
         *   **Rule**: Set this file as the **background-image** for the entire canvas.
     *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already in the template.
-    *   **Poster Grid (2x5)**:
-        *   **Layout**: Place 10 posters in 2 rows of 5.
-        *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
-        *   **Cropping Guard**: Use `object-fit: contain` with a black background color for the poster box. **Never stretch the poster images.**
-        *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
-        *   **Positioning**: 
-            *   **Top Margin**: Place the grid **250px** from the top (to clear the header).
-            *   **Bottom Margin**: Place the grid **200px** from the bottom.
-            *   **Center**: Ensure the entire grid is horizontally centered on the 1675px canvas.
+    *   **Balanced Symmetrical Grid**: 
+        *   **Rule**: Divide the total number of posters into **two equal rows** for a balanced look.
+        *   **Examples**:
+            *   **8 Posters**: Use two symmetrical rows of **4 posters**.
+            *   **6 Posters**: Use two symmetrical rows of **3 posters**.
+            *   **10 Posters**: Use two symmetrical rows of **5 posters**.
+        *   **Alignment**: If the number of posters is odd (e.g., 9), favor the top row for the extra poster and center the bottom row using `justify-content: center`.
+    *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
+    *   **Cropping Guard**: Use `object-fit: contain` with a black background color for the poster box. **Never stretch the poster images.**
+    *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
+    *   **Positioning**: 
+        *   **Top Margin**: Place the grid **250px** from the top (to clear the header).
+        *   **Bottom Margin**: Place the grid **200px** from the bottom.
+        *   **Center**: Ensure the entire grid is horizontally centered on the 1675px canvas.
 
 3.  **Step 3: Output**
     *   **Format**: High-quality **JPG**.
