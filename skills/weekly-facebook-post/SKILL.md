@@ -6,7 +6,7 @@ description: Automates creating a Facebook poster from Deluxe Cinema site links 
 # Weekly Facebook Post Skill
 
 **Overview:**
-This skill takes a list of Deluxe Cinema movie links, scrapes the high-quality **portrait posters**, generates a grid-style image using HTML/CSS, and pushes the final image to Facebook.
+This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality **portrait posters**, and generates a premium **2x5 grid** image (10 posters total). The 1000px content area is filled with posters found by the AI agent, while the **header and footer are left blank** for now.
 
 **Process Steps:**
 
@@ -22,17 +22,18 @@ This skill takes a list of Deluxe Cinema movie links, scrapes the high-quality *
     *   **Validation**: Confirm the image is a vertical portrait (approx. 2:3 ratio).
 
 2.  **Step 2: Make Poster (The Visual Result)**
-    *   **Layout**: Generate a grid-based HTML structure (similar to the "Showing This Week" reference image).
-    *   **Flex CSS Style**: Use CSS Flexbox/Grid for a responsive and premium alignment of movie posters.
-    *   **Dynamic Background**: Implement a dark, radial-sunburst or thematic background to make the posters pop.
-    *   **Have Header and Footer Fixed**: 
-        *   **Header**: Include "SHOWING THIS WEEK" in the brand font.
-        *   **Footer**: Include Deluxe Cinemas logo, phone number, and website URL.
-    *   **Export Recommendation**:
-        *   **Type**: **JPG** (Higher quality for complex colors while keeping file size social-media friendly).
-        *   **Size**: **1200 x 1200 px** (1:1 Ratio) or **1080 x 1080 px** (Square) for maximum visibility on Facebook and Instagram.
+    *   **Layout**: Generate a **2x5 grid** of posters (2 rows, 5 posters each, up to 10 total).
+    *   **Finding Posters**: The AI agent extracts the high-res portrait posters from each URL provided in the prompt and populates the grid.
+    *   **Flex/Grid CSS**: Use a centered container with gap/spacing to create a premium, balanced layout.
+    *   **Background**: Use a dark, elegant radial-sunburst or thematic background to highlight the posters.
+    *   **Header/Footer Configuration**: 
+        *   **Header**: Leave **blank** for now (maintain the space, but do not add text/graphics).
+        *   **Footer**: Leave **blank** for now (maintain the space, but do not add text/graphics).
+    *   **Technical Specs**:
+        *   **Export Type**: **JPG** (High quality).
+        *   **Size**: **1200 x 1200 px** (Square ratio).
 
-3.  **Step 3: Push to FB**
-    *   Upload the final **JPG** image.
-    *   Use the provided hook: *"The lineup you've been waiting for is finally here. Which one are you seeing first? 🎬"*
-    *   Include the individual movie links for direct booking.
+3.  **Step 3: Output Final JPG Path (Development Phase)**
+    *   **Skip Posting**: Do **NOT** push to Facebook yet as we are in the development and feedback phase.
+    *   **Action**: Print the **absolute path** to the final generated **JPG** poster image.
+    *   **Requirement**: Ensure the path is clearly visible so the user can download and review the visual result before final integration.
