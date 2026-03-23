@@ -12,8 +12,14 @@ This skill takes a list of Deluxe Cinema movie links, scrapes the high-quality *
 
 1.  **Step 1: Download Film Poster from Deluxe Cinema site**
     *   **Input**: A list of URLs from `deluxecinemas.co.nz` provided in the prompt.
-    *   **Scraping Rule**: Navigate to each URL and locate the **primary portrait movie poster**. Do NOT download landscape banners or character stills.
-    *   **Validation**: Ensure the image is the vertical poster (approx. 2:3 ratio) to fit the grid.
+    *   **Headless Browser Logic**:
+        *   **Navigate** to the specific movie URL.
+        *   **Wait** for the page to fully load (Next.js app), ensuring the dynamic content is rendered.
+        *   **Primary Selector**: Use `.single-movie__vertical-image img` to locate the high-quality portrait poster.
+        *   **Alternative Selector**: Look within `.sticky-inner-wrapper img` if the primary selector fails.
+        *   **Avoid Meta Tags**: Do **NOT** use `og:image` as it typically defaults to the website logo.
+        *   **Action**: Extract the `src` attribute of the identified image.
+    *   **Validation**: Confirm the image is a vertical portrait (approx. 2:3 ratio).
 
 2.  **Step 2: Make Poster (The Visual Result)**
     *   **Layout**: Generate a grid-based HTML structure (similar to the "Showing This Week" reference image).
