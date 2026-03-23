@@ -29,10 +29,13 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **Aspect Ratio**: Each poster container must strictly maintain a **2:3 aspect ratio** (e.g., 200px wide by 300px tall) to match standard film posters.
         *   **No Cropping**: Use `object-fit: contain` or ensure the container size matches the poster ratio exactly to **avoid cropping** the title or credits.
         *   **Border**: Apply a **thin golden border** (approx. 2-4px, Color: `#bfa888`) and subtle rounded corners.
-    *   **Background**: Use a dark, elegant radial-sunburst or thematic background to highlight the posters.
-    *   **Header/Footer Configuration**: 
-        *   **Header**: Leave **blank** for now (maintain the space, but do not add text/graphics).
-        *   **Footer**: Leave **blank** for now (maintain the space, but do not add text/graphics).
+    *   **Background Template**: 
+        *   **Path**: Use the official template provided at: `/skills/weekly-facebook-post/template-fb.png`.
+        *   **Implementation**: Set this image as the background of the 1675x1547 container.
+    *   **Header/Footer Placement**: Do **NOT** add any text or graphics to the header or footer areas, as they are already included in the template.
+    *   **Middle Poster Grid**: 
+        *   Position the **2x5 grid** of posters precisely in the middle sunburst section of the template.
+        *   Ensure the grid is centered and leaves clear margins from the header and footer graphics.
     *   **Technical Specs**:
         *   **Export Type**: **JPG** (High quality).
         *   **Size**: **1675 x 1547 px** (Production Standard).
