@@ -37,7 +37,38 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **Bottom Margin**: Place the grid **200px** from the bottom.
         *   **Center**: Ensure the entire grid is horizontally centered on the 1675px canvas.
 
-3.  **Step 3: Output**
+3.  **Step 3: Output Formatting**
     *   **Format**: High-quality **JPG**.
-    *   **Action**: Print the absolute local path to the final JPG.
-    *   **Post-Action**: Do **NOT** post to Facebook during the review phase.
+    *   **Action**: Save the final rendered 1675x1547 canvas as a high-res JPG.
+    *   **Naming**: Use `fb-weekly-post-[DATE].jpg`.
+    *   **Location**: Print the absolute local path to the final JPG.
+
+4.  **Step 4: Facebook Draft Upload**
+    *   **Action**: Use the **`facebook` skill** to upload the final poster image from Step 3 to your Facebook Page.
+    *   **Parameters**: 
+        *   **Credentials**: Pull `PAGE_ID` and `PAGE_ACCESS_TOKEN` from the `.env` file.
+        *   **Publish Mode**: Set the post to **Unpublished (Draft)** for manual review.
+        *   **Message**: Use a summary of the movies showing this week.
+    *   **Verification**: Ensure the agent confirms the `post_id` for the drafted content.
+
+**Important Implementation Details (CSS Stability):**
+- **Poster Box Styling**:
+  ```css
+  .poster-box {
+    width: 280px;
+    height: 420px;
+    border: 4px solid #bfa888;
+    border-radius: 8px;
+    overflow: hidden;
+    background: transparent; /* Zero black/white background space */
+    box-sizing: border-box; /* Ensures border doesn't add to 280x420 */
+    position: relative;
+  }
+  .poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  ```
+- **Transparent Space**: If a film has a white or black pillarbox in the *source* image, you MUST crop it out using `object-zoom` or `object-fit: cover` to ensure only the poster content is visible within the golden border.
