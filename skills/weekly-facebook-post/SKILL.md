@@ -29,7 +29,7 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
             *   **10 Posters**: Use two symmetrical rows of **5 posters**.
         *   **Alignment**: If the number of posters is odd (e.g., 9), favor the top row for the extra poster and center the bottom row using `justify-content: center`.
     *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
-    *   **Cropping Guard**: Use `object-fit: contain` with a black background color for the poster box. **Never stretch the poster images.**
+    *   **Cropping Guard**: Use `object-fit: cover` with a **transparent** background color for the poster box. Use `overflow: hidden` to ensure images stay inside the borders. **Never stretch the poster images.**
     *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
     *   **Positioning**: 
         *   **Top Margin**: Place the grid **250px** from the top (to clear the header).
