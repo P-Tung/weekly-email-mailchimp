@@ -16,11 +16,11 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
     *   **Action**: Extract the absolute URL of the high-res poster image.
 
 2.  **Step 2: Generate the Final Poster (STRICT FORM)**
-    *   **Canvas Size**: Exactly **1675 x 1547 px**.
-    *   **Background Template**: 
+    *   **Background Template (MANDATORY)**: 
         *   **Path**: **MUST** use the absolute path to `/Users/tungpham/Documents/code/work/weekly-email-mailchimp/skills/weekly-facebook-post/template-fb.png`.
-        *   **Rule**: This is **NON-NEGOTIABLE**. Set this file as the `background-image` for the `body` or the main container. If using a canvas API, draw this image first as the base layer.
-    *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already burned into the template image.
+        *   **CRITICAL FAIL CONDITION**: If the final image has a white, black, or plain background, it is a **FAILURE**. You MUST see the "SHOWING THIS WEEK" header and red footer from the template file.
+        *   **Rule**: The template **MUST** be the first thing drawn on the 1675 x 1547 canvas. All movie posters must be layered **on top** of it.
+    *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already burned into the template image. Ensure posters sit in the center space and do not overlap these areas.
     *   **Balanced Symmetrical Grid (Strict 2-Row Layout)**: 
         *   **Dynamic Logic**: Always split the total number of films (**N**) into two rows for maximum balance. 
             *   **Row 1 Count**: `Math.ceil(N / 2)`
