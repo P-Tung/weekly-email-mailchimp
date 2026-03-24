@@ -18,16 +18,16 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
 2.  **Step 2: Generate the Final Poster (STRICT FORM)**
     *   **Canvas Size**: Exactly **1675 x 1547 px**.
     *   **Background Template**: 
-        *   **Path**: Use the file located at `./skills/weekly-facebook-post/template-fb.png`.
-        *   **Rule**: Set this file as the **background-image** for the entire canvas.
-    *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already in the template.
-    *   **Balanced Symmetrical Grid**: 
-        *   **Rule**: Divide the total number of posters into **two equal rows** for a balanced look.
-        *   **Examples**:
-            *   **8 Posters**: Use two symmetrical rows of **4 posters**.
-            *   **6 Posters**: Use two symmetrical rows of **3 posters**.
-            *   **10 Posters**: Use two symmetrical rows of **5 posters**.
-        *   **Alignment**: If the number of posters is odd (e.g., 9), favor the top row for the extra poster and center the bottom row using `justify-content: center`.
+        *   **Path**: **MUST** use the absolute path to `/Users/tungpham/Documents/code/work/weekly-email-mailchimp/skills/weekly-facebook-post/template-fb.png`.
+        *   **Rule**: This is **NON-NEGOTIABLE**. Set this file as the `background-image` for the `body` or the main container. If using a canvas API, draw this image first as the base layer.
+    *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already burned into the template image.
+    *   **Balanced Symmetrical Grid (Flexbox/Grid)**: 
+        *   **CSS Rule**: Use `display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 40px;` for the container.
+        *   **Logic**: Divide the posters into **two equal rows**. 
+            *   **8 Posters**: Two rows of **4**.
+            *   **6 Posters**: Two rows of **3**.
+            *   **Odd Numbers (e.g., 9)**: Use `justify-content: center` so the bottom row remains centered relative to the top.
+        *   **Dimensions**: The grid container should have a `max-width: 1600px` to keep posters away from the edges.
     *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
     *   **Cropping Guard**: Use `object-fit: cover` with a **transparent** background color for the poster box. Use `overflow: hidden` to ensure images stay inside the borders. **Never stretch the poster images.**
     *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
