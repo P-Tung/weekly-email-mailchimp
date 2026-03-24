@@ -29,13 +29,14 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **CSS Style**: Use two separate `flex` containers (one for each row) or a `grid` with specific row definitions to force this split.
         *   **Centering**: Use `justify-content: center` for both rows so they align vertically even if counts differ by 1.
         *   **Gap/Padding**: Use `gap: 30px;` and ensure the grid does not exceed `max-width: 1550px`.
+        *   **Vertical Row Spacing**: Ensure the top row and bottom row are separated by exactly **30px** vertical gap.
     *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
     *   **Cropping Guard**: Use `object-fit: cover` with a **transparent** background color for the poster box. Use `overflow: hidden` to ensure images stay inside the borders. **Never stretch the poster images.**
     *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
     *   **Positioning**: 
-        *   **Top Margin**: Place the grid **250px** from the top (to clear the header).
-        *   **Bottom Margin**: Place the grid **200px** from the bottom.
-        *   **Center**: Ensure the entire grid is horizontally centered on the 1675px canvas.
+        *   **Perfect Centering**: The entire poster grid **MUST** be perfectly centered vertically and horizontally on the **1675 x 1547** canvas.
+        *   **Equal Spacing**: The top space (between header text and grid) and bottom space (between grid and footer logo) **MUST** be exactly equal.
+        *   **Flex Centering**: Use `display: flex; flex-direction: column; justify-content: center; align-items: center;` on the main container for stable alignment.
 
 3.  **Step 3: Output Formatting**
     *   **Format**: High-quality **JPG**.
@@ -51,17 +52,38 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **Message**: Use a summary of the movies showing this week.
     *   **Verification**: Ensure the agent confirms the `post_id` for the drafted content.
 
-**Important Implementation Details (CSS Stability):**
-- **Poster Box Styling**:
+- **Poster CSS Stablity**:
   ```css
+  .canvas {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 1675px;
+    height: 1547px;
+    background-image: url('template-fb.png');
+    background-size: contain;
+  }
+  .grid-container {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    align-items: center;
+    justify-content: center;
+  }
+  .poster-row {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+  }
   .poster-box {
     width: 280px;
     height: 420px;
     border: 4px solid #bfa888;
     border-radius: 8px;
     overflow: hidden;
-    background: transparent; /* Zero black/white background space */
-    box-sizing: border-box; /* Ensures border doesn't add to 280x420 */
+    background: transparent;
+    box-sizing: border-box;
     position: relative;
   }
   .poster-img {
