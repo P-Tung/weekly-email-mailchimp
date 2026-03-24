@@ -21,13 +21,14 @@ This skill takes a list of movie URLs from Deluxe Cinemas, scrapes high-quality 
         *   **Path**: **MUST** use the absolute path to `/Users/tungpham/Documents/code/work/weekly-email-mailchimp/skills/weekly-facebook-post/template-fb.png`.
         *   **Rule**: This is **NON-NEGOTIABLE**. Set this file as the `background-image` for the `body` or the main container. If using a canvas API, draw this image first as the base layer.
     *   **Header and Footer**: Do **NOT** add any text or graphics to the header ("SHOWING THIS WEEK") or footer regions, as they are already burned into the template image.
-    *   **Balanced Symmetrical Grid (Flexbox/Grid)**: 
-        *   **CSS Rule**: Use `display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 40px;` for the container.
-        *   **Logic**: Divide the posters into **two equal rows**. 
-            *   **8 Posters**: Two rows of **4**.
-            *   **6 Posters**: Two rows of **3**.
-            *   **Odd Numbers (e.g., 9)**: Use `justify-content: center` so the bottom row remains centered relative to the top.
-        *   **Dimensions**: The grid container should have a `max-width: 1600px` to keep posters away from the edges.
+    *   **Balanced Symmetrical Grid (Strict 2-Row Layout)**: 
+        *   **Dynamic Logic**: Always split the total number of films (**N**) into two rows for maximum balance. 
+            *   **Row 1 Count**: `Math.ceil(N / 2)`
+            *   **Row 2 Count**: `N - Row 1 Count`
+        *   **Rule**: If N = 8, you **MUST** have exactly **4 on top** and **4 on bottom**. Do NOT default to a 5-poster row.
+        *   **CSS Style**: Use two separate `flex` containers (one for each row) or a `grid` with specific row definitions to force this split.
+        *   **Centering**: Use `justify-content: center` for both rows so they align vertically even if counts differ by 1.
+        *   **Gap/Padding**: Use `gap: 30px;` and ensure the grid does not exceed `max-width: 1550px`.
     *   **Poster Dimensions**: Each poster box must be exactly **280px wide x 420px tall** (Strict 2:3 Ratio).
     *   **Cropping Guard**: Use `object-fit: cover` with a **transparent** background color for the poster box. Use `overflow: hidden` to ensure images stay inside the borders. **Never stretch the poster images.**
     *   **Border**: Apply a **4px solid golden border** (Color: `#bfa888`) and **8px rounded corners** to each poster box.
