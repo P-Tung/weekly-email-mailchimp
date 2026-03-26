@@ -3,12 +3,20 @@ const path = require('path');
 const cheerio = require('cheerio');
 const { execSync } = require('child_process');
 
-const MC_API_KEY = process.env.MATON_API_KEY || "ZdNbP1Xb6_t3Tp5gJB6oL96eZj-mgkcqTE37vDE4ie8JgfqpPEkmxCT6GAyjzNBNIZZUHHL3OH4QmEuN9tv-rm83SPRv08SfUyIQYkzV4g";
+const MC_API_KEY = process.env.MATON_API_KEY;
+if (!MC_API_KEY) {
+    console.error("❌ FATAL: MATON_API_KEY environment variable is required.");
+    console.error("   Please create .env.local with: MATON_API_KEY=your_key");
+    console.error("   Or set it in your environment before running.");
+    process.exit(1);
+}
 const MC_BASE_URL = "https://gateway.maton.ai/mailchimp/3.0";
 const WORKSPACE_DIR = path.resolve(__dirname, "../");
 
+const FALLBACK_IMAGE = "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg";
+
 async function uploadImage(buffer, filename) {
-    console.log(`Uploading ${filename} to Mailchimp...`);
+    console.log(`  📤 Uploading ${filename} to Mailchimp CDN...`);
     const content = buffer.toString('base64');
     const res = await fetch(`${MC_BASE_URL}/file-manager/files`, {
         method: "POST",
@@ -16,12 +24,50 @@ async function uploadImage(buffer, filename) {
         body: JSON.stringify({ name: `auto_${Date.now()}_${filename}`, file_data: content })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(`Upload failed for ${filename}: ${JSON.stringify(data)}`);
+    if (!res.ok) {
+        console.warn(`  ⚠️ Upload failed for ${filename}: ${JSON.stringify(data)}`);
+        throw new Error(`Upload failed for ${filename}`);
+    }
+    console.log(`  ✅ Image uploaded successfully`);
     return data.full_size_url;
 }
 
+async function getDeluxeCinemaPoster(title) {
+    console.log(`  🔍 Searching deluxecinemas.co.nz for poster: ${title}`);
+    try {
+        const res = await fetch(`https://www.deluxecinemas.co.nz/`, { 
+            headers: { "User-Agent": "Mozilla/5.0" } 
+        });
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        
+        const filmLink = $(`a:contains("${title}")`).first();
+        if (filmLink.length) {
+            const href = filmLink.attr('href');
+            if (href) {
+                const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { 
+                    headers: { "User-Agent": "Mozilla/5.0" } 
+                });
+                const filmHtml = await filmRes.text();
+                const $f = cheerio.load(filmHtml);
+                
+                const poster = $f('.film-poster img, .poster img, img[alt*="poster"]').first();
+                const posterSrc = poster.attr('src') || poster.attr('data-src');
+                if (posterSrc) {
+                    const fullUrl = posterSrc.startsWith('http') ? posterSrc : `https://www.deluxecinemas.co.nz${posterSrc}`;
+                    console.log(`  ✅ Found poster on Deluxe Cinemas: ${fullUrl}`);
+                    return fullUrl;
+                }
+            }
+        }
+    } catch(e) {
+        console.warn(`  ⚠️ Failed to fetch from Deluxe Cinemas: ${e.message}`);
+    }
+    return null;
+}
+
 async function getTMDBBanner(title) {
-    console.log(`Searching TMDB for high-res banner: ${title}`);
+    console.log(`  🔍 Searching TMDB for banner: ${title}`);
     try {
         const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const html = await res.text();
@@ -30,30 +76,122 @@ async function getTMDBBanner(title) {
             const mRes = await fetch(`https://www.themoviedb.org${match[1]}`, { headers: { "User-Agent": "Mozilla/5.0" }});
             const mHtml = await mRes.text();
             const bMatch = mHtml.match(/url\('([^']+w1920[^']+)'\)/);
-            if (bMatch) return bMatch[1];
+            if (bMatch) {
+                console.log(`  ✅ Found TMDB banner`);
+                return bMatch[1];
+            }
         }
-    } catch(e) {}
+    } catch(e) {
+        console.warn(`  ⚠️ TMDB search failed: ${e.message}`);
+    }
     return null;
 }
 
 async function fetchImageAndUpload(url, isLandscape, title) {
-    let finalUrl = url;
+    let finalUrl = null;
+    let source = null;
+
+    // FOR FEATURED FILMS (landscape): Priority is TMDB > Deluxe > Veezi
+    // TMDB has 1920px banners that resize perfectly to 700px
     if (isLandscape) {
-        // Fetch high res banner to prevent distortion
+        console.log(`  🔍 [Featured] Finding best banner image for: ${title}`);
+        
+        // 1. Try TMDB first (1920px banners - best quality for 700px display)
         const tmdbBanner = await getTMDBBanner(title);
-        if (tmdbBanner) finalUrl = tmdbBanner;
+        if (tmdbBanner) {
+            finalUrl = tmdbBanner;
+            source = "TMDB (1920px)";
+            console.log(`  ✅ [Featured] Using TMDB banner: ${finalUrl.substring(0, 60)}...`);
+        }
+        
+        // 2. If TMDB fails, try Deluxe Cinemas
+        if (!finalUrl) {
+            const deluxePoster = await getDeluxeCinemaPoster(title);
+            if (deluxePoster) {
+                finalUrl = deluxePoster;
+                source = "Deluxe Cinemas";
+                console.log(`  ✅ [Featured] Using Deluxe poster: ${finalUrl.substring(0, 60)}...`);
+            }
+        }
+        
+        // 3. Last resort: use Veezi poster (usually small portrait, will be upscaled)
+        if (!finalUrl && url && url.startsWith('http')) {
+            finalUrl = url;
+            source = "Veezi (fallback - may be small)";
+            console.log(`  ⚠️ [Featured] Using Veezi poster (may be small/upscaled)`);
+        }
+    } else {
+        // FOR NOW SHOWING FILMS (portrait): Priority is Veezi > Deluxe > TMDB
+        console.log(`  🔍 [Now Showing] Finding poster image for: ${title}`);
+        
+        // 1. Try Veezi first (primary source for portrait posters)
+        if (url && url.startsWith('http')) {
+            finalUrl = url;
+            source = "Veezi";
+            console.log(`  ✅ [Now Showing] Using Veezi poster`);
+        }
+        
+        // 2. If Veezi fails, try Deluxe Cinemas
+        if (!finalUrl) {
+            const deluxePoster = await getDeluxeCinemaPoster(title);
+            if (deluxePoster) {
+                finalUrl = deluxePoster;
+                source = "Deluxe Cinemas";
+                console.log(`  ✅ [Now Showing] Using Deluxe poster`);
+            }
+        }
+        
+        // 3. TMDB doesn't have good portrait poster URLs easily, skip
     }
 
-    if (!finalUrl || !finalUrl.startsWith('http')) return "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg"; 
-    
-    console.log(`Downloading image: ${finalUrl}`);
-    const res = await fetch(finalUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!finalUrl || !finalUrl.startsWith('http')) {
+        console.log(`  ❌ All image sources failed, using fallback placeholder`);
+        return FALLBACK_IMAGE;
+    }
+
+    console.log(`  📥 Downloading image from ${source}: ${finalUrl.substring(0, 50)}...`);
+    let res;
+    try {
+        res = await fetch(finalUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.headers.get('content-type')?.includes('image')) {
+            throw new Error('Not an image');
+        }
+    } catch (e) {
+        console.warn(`  ⚠️ Download from ${source} failed: ${e.message}`);
+        
+        // Retry logic: if primary fails, try fallback sources
+        let fallbackUrl = null;
+        
+        if (isLandscape && source !== "Veezi (fallback - may be small)" && url && url.startsWith('http')) {
+            // For featured films, try Veezi as last resort
+            fallbackUrl = url;
+            console.log(`  🔄 [Featured] Retry with Veezi fallback...`);
+        } else if (!isLandscape && source !== "Veezi") {
+            // For now showing, try Veezi as fallback
+            if (url && url.startsWith('http')) {
+                fallbackUrl = url;
+                console.log(`  🔄 [Now Showing] Retry with Veezi fallback...`);
+            }
+        }
+        
+        if (fallbackUrl) {
+            res = await fetch(fallbackUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+            if (!res.ok) fallbackUrl = null;
+        }
+        
+        if (!fallbackUrl) {
+            console.warn(`  ❌ All image downloads failed, using fallback`);
+            return FALLBACK_IMAGE;
+        }
+    }
+
     const buffer = Buffer.from(await res.arrayBuffer());
     
     const tempIn = path.join(WORKSPACE_DIR, `temp_in_${Date.now()}.jpg`);
     const tempOut = path.join(WORKSPACE_DIR, `temp_out_${Date.now()}.jpg`);
     fs.writeFileSync(tempIn, buffer);
-    
+
     try {
         if (isLandscape) {
             execSync(`convert "${tempIn}" -resize 700x "${tempOut}"`);
@@ -66,21 +204,25 @@ async function fetchImageAndUpload(url, isLandscape, title) {
         fs.unlinkSync(tempOut);
         return cdn;
     } catch (e) {
-        console.warn("Resize failed, uploading original:", e.message);
+        console.warn(`  ⚠️ ImageMagick resize failed: ${e.message}, uploading original`);
         fs.unlinkSync(tempIn);
+        if (tempOut && fs.existsSync(tempOut)) fs.unlinkSync(tempOut);
         return await uploadImage(buffer, "poster.jpg");
     }
 }
 
 async function getVeeziSessions() {
+    console.log("📡 Fetching Veezi sessions API...");
     const res = await fetch("https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym");
     const html = await res.text();
     const match = html.match(/\[{"@type":"VisualArtsEvent".*?\}\]/);
-    if (!match) throw new Error("Could not find Veezi JSON-LD");
+    if (!match) throw new Error("❌ Could not find Veezi JSON-LD data");
+    console.log("✅ Veezi sessions fetched successfully");
     return JSON.parse(match[0]);
 }
 
 async function getVeeziMetadata() {
+    console.log("📡 Scraping Veezi metadata (posters, ratings, synopses)...");
     const res = await fetch("https://ticketing.oz.veezi.com/sessions/?siteToken=wpge11hbvd3zadj20jkc0y36ym");
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -100,6 +242,7 @@ async function getVeeziMetadata() {
             meta[title] = { title, posterUrl, rating, synopsis };
         }
     });
+    console.log(`✅ Found metadata for ${Object.keys(meta).length} films`);
     return meta;
 }
 
@@ -116,14 +259,25 @@ function formatDate(iso) {
 }
 
 async function main() {
-    const payloadFile = process.argv[2];
-    if (!payloadFile) throw new Error("Usage: node build_and_push.js <payload.json>");
-    const payload = JSON.parse(fs.readFileSync(payloadFile, "utf-8"));
+    console.log("\n========================================");
+    console.log("🎬 BUILD CINEMA EMAIL - STARTED");
+    console.log("========================================\n");
 
+    const payloadFile = process.argv[2];
+    if (!payloadFile) throw new Error("❌ Usage: node build_and_push.js <payload.json>");
+    
+    console.log(`📋 Loading payload: ${payloadFile}`);
+    const payload = JSON.parse(fs.readFileSync(payloadFile, "utf-8"));
+    console.log(`   Dates: ${payload.dates}`);
+    console.log(`   Featured films: ${payload.featured_films.join(", ")}`);
+    console.log(`   Now showing: ${payload.now_showing.join(", ")}`);
+    if (payload.test_email) console.log(`   Test email: ${payload.test_email}`);
+
+    console.log("\n--- STEP 1: Fetching Data ---");
     const sessions = await getVeeziSessions();
     const metadata = await getVeeziMetadata();
     
-    // Fix Bug 1: Robust Date Parsing
+    console.log("\n--- STEP 2: Parsing Date Range ---");
     const monthMap = { "jan": 0, "feb": 1, "mar": 2, "apr": 3, "may": 4, "jun": 5, "jul": 6, "aug": 7, "sep": 8, "oct": 9, "nov": 10, "dec": 11 };
     const dateMatch = payload.dates.toLowerCase().match(/([a-z]+)\s+(\d+).*?([a-z]+)?\s+(\d+)/);
     
@@ -135,15 +289,21 @@ async function main() {
     const targetStart = new Date(Date.UTC(2026, startMonth, startDay, 0, 0, 0));
     const targetEnd = new Date(Date.UTC(2026, endMonth, endDay, 23, 59, 59));
 
+    console.log(`   Target range: ${targetStart.toDateString()} to ${targetEnd.toDateString()}`);
+
     const targetSessions = sessions.filter(s => {
         const d = new Date(s.startDate);
         return d >= targetStart && d <= targetEnd;
     });
+    console.log(`   Found ${targetSessions.length} sessions in date range`);
 
-    const templatePath = path.join(WORKSPACE_DIR, "goal-example", "goal-example.html");
+    console.log("\n--- STEP 3: Loading Template ---");
+    const templatePath = path.join(WORKSPACE_DIR, "cinema-email-master-template-2.html");
+    console.log(`   Template: ${templatePath}`);
     const html = fs.readFileSync(templatePath, "utf-8");
     
     let newHtmlStr = html.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
+    console.log(`   ✅ Template loaded and date range updated`);
 
     const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
     const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
@@ -155,18 +315,49 @@ async function main() {
     const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
     const baseNsBlock = nsBlocks[0]; 
 
+    console.log("\n--- STEP 4: Building Film Blocks ---");
+
     async function buildBlock(filmTitle, baseTemplate, isFeatured, index) {
-        const vKey = Object.keys(metadata).find(k => k.toLowerCase().includes(filmTitle.toLowerCase()) || filmTitle.toLowerCase().includes(k.toLowerCase()));
-        const meta = vKey ? metadata[vKey] : { title: filmTitle, rating: "TBC", synopsis: filmTitle + " is showing at Deluxe Cinemas.", posterUrl: null };
+        console.log(`\n   ${isFeatured ? "⭐" : "🎬"} Processing: ${filmTitle}`);
         
-        let mSessions = targetSessions.filter(s => s.name.toLowerCase().includes(filmTitle.toLowerCase()) || filmTitle.toLowerCase().includes(s.name.toLowerCase()));
+        const vKey = Object.keys(metadata).find(k => 
+            k.toLowerCase().includes(filmTitle.toLowerCase()) || 
+            filmTitle.toLowerCase().includes(k.toLowerCase())
+        );
+        
+        let meta;
+        if (vKey) {
+            meta = metadata[vKey];
+            console.log(`   ✅ Matched to Veezi: "${vKey}"`);
+        } else {
+            meta = { 
+                title: filmTitle, 
+                rating: "TBC", 
+                synopsis: filmTitle + " is showing at Deluxe Cinemas.", 
+                posterUrl: null 
+            };
+            console.log(`   ⚠️ Film not found in Veezi - using fallback data`);
+        }
+        
+        let mSessions = targetSessions.filter(s => 
+            s.name.toLowerCase().includes(filmTitle.toLowerCase()) || 
+            filmTitle.toLowerCase().includes(s.name.toLowerCase())
+        );
         mSessions.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
         
-        let showtimesHtml = mSessions.map(s => `<a href="${s.url}" target="_blank" style="color: #6b6b6b; text-decoration: none; font-weight: bold;">${formatDate(s.startDate)}</a>`).join(" | ");
+        if (mSessions.length > 0) {
+            console.log(`   ✅ Found ${mSessions.length} showtimes in date range`);
+        } else {
+            console.log(`   ⚠️ No showtimes in date range - will show "Check website for times"`);
+        }
+        
+        let showtimesHtml = mSessions.map(s => 
+            `<a href="${s.url}" target="_blank" style="color: #6b6b6b; text-decoration: none; font-weight: bold;">${formatDate(s.startDate)}</a>`
+        ).join(" | ");
         if (showtimesHtml === "") showtimesHtml = "Check website for times.";
         const earliestUrl = mSessions.length > 0 ? mSessions[0].url : "https://deluxecinemas.co.nz/";
 
-        // Fix Bug 2: Fetch TMDB High Res Banners for Featured Films
+        console.log(`   🖼️ Fetching and uploading poster...`);
         let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured, meta.title);
 
         const $b = cheerio.load(baseTemplate, null, false);
@@ -204,43 +395,70 @@ async function main() {
             finalHtml = finalHtml.replace(/_1"/g, `_${index}"`);
         }
         
+        console.log(`   ✅ ${filmTitle} block built successfully`);
         return finalHtml;
     }
 
-    console.log("Building Featured Films...");
+    console.log("\n   📌 Building Featured Films...");
     let updatedFeatured = [];
     for (let i = 0; i < payload.featured_films.length; i++) {
         updatedFeatured.push(await buildBlock(payload.featured_films[i], baseF1Block, true, i+1));
     }
 
-    console.log("Building Now Showing Films...");
+    console.log("\n   📌 Building Now Showing Films...");
     let updatedNowShowing = [];
     for (let i = 0; i < payload.now_showing.length; i++) {
         updatedNowShowing.push(await buildBlock(payload.now_showing[i], baseNsBlock, false, i+1));
     }
 
+    console.log("\n--- STEP 5: Assembling Final HTML ---");
     let newNsContent = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1")) + updatedNowShowing.join("");
     let finalHtml = newHtmlStr.substring(0, f1Start) + updatedFeatured.join("") + newNsContent + newHtmlStr.substring(csStart);
     
-    fs.writeFileSync(path.join(WORKSPACE_DIR, "final_dynamic_campaign.html"), finalHtml);
-    console.log("Successfully rebuilt final_dynamic_campaign.html");
-    
+    const outputPath = path.join(WORKSPACE_DIR, "final_dynamic_campaign.html");
+    fs.writeFileSync(outputPath, finalHtml);
+    console.log(`   ✅ Output saved to: ${outputPath}`);
+
+    console.log("\n--- STEP 6: Pushing to Mailchimp ---");
     const campRes = await fetch(`${MC_BASE_URL}/campaigns?status=save`, { headers: { "Authorization": `Bearer ${MC_API_KEY}` } });
     const campData = await campRes.json();
-    if (campData.campaigns && campData.campaigns.length > 0) {
-        const campId = campData.campaigns[0].id;
-        await fetch(`${MC_BASE_URL}/campaigns/${campId}/content`, {
-            method: "PUT",
-            headers: { "Authorization": `Bearer ${MC_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ html: finalHtml })
-        });
-        
+    
+    if (!campData.campaigns || campData.campaigns.length === 0) {
+        console.log("❌ No campaign found to push to. Please create a draft campaign in Mailchimp first.");
+        return;
+    }
+    
+    const campId = campData.campaigns[0].id;
+    console.log(`   📤 Pushing HTML to campaign ${campId}...`);
+    
+    await fetch(`${MC_BASE_URL}/campaigns/${campId}/content`, {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${MC_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ html: finalHtml })
+    });
+    console.log(`   ✅ Campaign content updated`);
+
+    if (payload.test_email) {
+        console.log(`   📧 Sending test email to: ${payload.test_email}`);
         const testRes = await fetch(`${MC_BASE_URL}/campaigns/${campId}/actions/test`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${MC_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({ test_emails: [payload.test_email], send_type: "html" })
         });
-        console.log("Test email sent!", testRes.status);
+        if (testRes.ok) {
+            console.log(`   ✅ Test email sent successfully!`);
+        } else {
+            console.log(`   ❌ Failed to send test email: ${testRes.status}`);
+        }
+    } else {
+        console.log(`   ℹ️ No test_email in payload - skipping test send`);
     }
+
+    console.log("\n========================================");
+    console.log("🎉 BUILD CINEMA EMAIL - COMPLETED!");
+    console.log("========================================\n");
 }
-main().catch(console.error);
+main().catch(err => {
+    console.error("\n❌ ERROR:", err.message);
+    process.exit(1);
+});

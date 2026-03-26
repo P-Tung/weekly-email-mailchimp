@@ -2,7 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const MC_API_KEY = process.env.MATON_API_KEY || "ZdNbP1Xb6_t3Tp5gJB6oL96eZj-mgkcqTE37vDE4ie8JgfqpPEkmxCT6GAyjzNBNIZZUHHL3OH4QmEuN9tv-rm83SPRv08SfUyIQYkzV4g";
+const MC_API_KEY = process.env.MATON_API_KEY;
+if (!MC_API_KEY) {
+    console.error("❌ FATAL: MATON_API_KEY environment variable is required.");
+    console.error("   OpenClaw should have this configured in environment.");
+    process.exit(1);
+}
 const MC_BASE_URL = "https://gateway.maton.ai/mailchimp/3.0";
 const WORKSPACE_DIR = path.resolve(__dirname, "../../");
 
