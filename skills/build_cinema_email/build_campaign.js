@@ -560,12 +560,12 @@ async function main() {
         $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
         $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
         
-        // Clear any extra description fields in the template to prevent duplicate content
-        // Use .html('') which is more reliable than .text('') or .remove()
-        $b('p[mc\\:edit="movie_description_2"]').html('');
-        $b('p[mc\\:edit="movie_description_3"]').html('');
-        $b('p[mc\\:edit="featured_film_description_2"]').html('');
-        $b('p[mc\\:edit="featured_film_description_3"]').html('');
+        // Remove any extra description fields from the template
+        let blockHtml = $b.html();
+        blockHtml = blockHtml.replace(/<p mc:edit="movie_description_2"[^>]*>.*?<\/p>/gi, '');
+        blockHtml = blockHtml.replace(/<p mc:edit="movie_description_3"[^>]*>.*?<\/p>/gi, '');
+        blockHtml = blockHtml.replace(/<p mc:edit="featured_film_description_2"[^>]*>.*?<\/p>/gi, '');
+        blockHtml = blockHtml.replace(/<p mc:edit="featured_film_description_3"[^>]*>.*?<\/p>/gi, '');
         
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
