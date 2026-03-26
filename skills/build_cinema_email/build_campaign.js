@@ -69,59 +69,137 @@ async function getMXfilmPoster(title) {
 async function getDeluxeTrailer(title) {
     console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
     try {
+        // Try to find film URL from homepage - search for partial matches too
+        let filmUrl = null;
+        
         const res = await fetch(`https://www.deluxecinemas.co.nz/`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const html = await res.text();
         const $ = cheerio.load(html);
         
-        const filmLink = $(`a:contains("${title}")`).first();
-        if (filmLink.length) {
+        // Try exact title match first
+        let filmLink = $(`a:contains("${title}")`).first();
+        
+        // If no exact match, try partial match
+        if (!filmLink.length) {
+            // Get all links and find ones that contain the title
+            const allLinks = $('a[href*="/movie/"]');
+            allLinks.each((i, el) => {
+                const linkText = $(el).text().toLowerCase();
+                const titleLower = title.toLowerCase();
+                if (linkText.includes(titleLower) || titleLower.includes(linkText)) {
+                    filmLink = $(el);
+                    return false; // break
+                }
+            });
+        }
+        
+        if (filmLink && filmLink.length) {
             const href = filmLink.attr('href');
             if (href) {
-                const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { headers: { "User-Agent": "Mozilla/5.0" } });
-                const filmHtml = await filmRes.text();
-                const $f = cheerio.load(filmHtml);
-                
-                // First try: Look for explicit "Watch Trailer" button/link
-                let trailerLink = $f('a:contains("WATCH TRAILER"), a:contains("Watch Trailer"), a:contains("Trailer")').first();
-                if (trailerLink.length) {
-                    const trailerHref = trailerLink.attr('href');
-                    if (trailerHref) {
-                        // Check if it's a YouTube link
-                        if (trailerHref.includes('youtube.com') || trailerHref.includes('youtu.be')) {
-                            console.log(`  ✅ Found YouTube trailer link on Deluxe Cinemas`);
-                            return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
-                        }
-                        console.log(`  ✅ Found trailer on Deluxe Cinemas`);
-                        return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
-                    }
-                }
-                
-                // Second try: Look for YouTube embeds in the page
-                const youtubeEmbed = $f('iframe[src*="youtube"], iframe[src*="youtu.be"]').first();
-                if (youtubeEmbed.length) {
-                    const src = youtubeEmbed.attr('src');
-                    if (src) {
-                        // Convert embed URL to watch URL
-                        let youtubeUrl = src;
-                        if (src.includes('embed/')) {
-                            const videoId = src.split('embed/')[1]?.split('?')[0];
-                            if (videoId) {
-                                youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-                            }
-                        }
-                        console.log(`  ✅ Found YouTube embed on Deluxe Cinemas`);
-                        return youtubeUrl;
-                    }
-                }
-                
-                // Third try: Look for any YouTube links in the page
-                const anyYoutubeLink = $f('a[href*="youtube.com/watch"], a[href*="youtu.be/"]').first();
-                if (anyYoutubeLink.length) {
-                    console.log(`  ✅ Found YouTube link on Deluxe Cinemas page`);
-                    return anyYoutubeLink.attr('href');
+                filmUrl = href.startsWith('http') ? href : `https://www.deluxecinemas.co.nz${href}`;
+            }
+        }
+        
+        if (!filmUrl) {
+            // Try direct URL with slugified title
+            const slug = title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+            filmUrl = `https://www.deluxecinemas.co.nz/movie/${slug}`;
+            console.log(`  🔍 Trying direct URL: ${filmUrl}`);
+        }
+        
+        console.log(`  🔍 Fetching film page: ${filmUrl}`);
+        const filmRes = await fetch(filmUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        
+        if (!filmRes.ok) {
+            console.log(`  ⚠️ Direct URL not found, trying search...`);
+            // Try searching for the film
+            const searchUrl = `https://www.deluxecinemas.co.nz/search?q=${encodeURIComponent(title)}`;
+            const searchRes = await fetch(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+            if (searchRes.ok) {
+                const searchHtml = await searchRes.text();
+                const $s = cheerio.load(searchHtml);
+                const resultLink = $s('a[href*="/movie/"]').first();
+                if (resultLink.length) {
+                    filmUrl = resultLink.attr('href');
+                    filmUrl = filmUrl.startsWith('http') ? filmUrl : `https://www.deluxecinemas.co.nz${filmUrl}`;
                 }
             }
         }
+        
+        if (!filmUrl) {
+            return null;
+        }
+        
+        const filmRes2 = await fetch(filmUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const filmHtml = await filmRes2.text();
+        const $f = cheerio.load(filmHtml);
+        
+        // Method 1: Look for the trailer button with data attribute
+        const trailerBtn = $f('.trailer__trigger, button.trailer-trigger, [data-trailer], [data-video-url]').first();
+        if (trailerBtn.length) {
+            const dataTrailer = trailerBtn.attr('data-trailer') || trailerBtn.attr('data-video-url') || trailerBtn.attr('data-video') || trailerBtn.attr('data-src');
+            if (dataTrailer && (dataTrailer.includes('youtube') || dataTrailer.includes('youtu.be') || dataTrailer.includes('embed'))) {
+                console.log(`  ✅ Found YouTube trailer in data attribute`);
+                if (dataTrailer.includes('embed')) {
+                    const videoId = dataTrailer.split('embed/')[1]?.split('?')[0];
+                    return `https://www.youtube.com/watch?v=${videoId}`;
+                }
+                return dataTrailer.startsWith('http') ? dataTrailer : `https://www.youtube.com${dataTrailer}`;
+            }
+        }
+        
+        // Method 2: Look for any element with youtube/-video in any attribute
+        const allElements = $f('*');
+        for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i];
+            const attrs = $f(el).attr();
+            for (const [key, val] of Object.entries(attrs)) {
+                if (val && (val.includes('youtube.com') || val.includes('youtu.be') || val.includes('/embed/'))) {
+                    console.log(`  ✅ Found YouTube in attribute ${key}`);
+                    if (val.includes('/embed/')) {
+                        const videoId = val.split('/embed/')[1]?.split('?')[0];
+                        return `https://www.youtube.com/watch?v=${videoId}`;
+                    }
+                    return val.startsWith('http') ? val : `https://www.youtube.com${val}`;
+                }
+            }
+        }
+        
+        // Method 3: Look for YouTube embeds in iframes
+        const youtubeEmbed = $f('iframe[src*="youtube"], iframe[src*="youtu.be"]').first();
+        if (youtubeEmbed.length) {
+            const src = youtubeEmbed.attr('src');
+            if (src) {
+                let youtubeUrl = src;
+                if (src.includes('embed/')) {
+                    const videoId = src.split('embed/')[1]?.split('?')[0];
+                    if (videoId) {
+                        youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                    }
+                }
+                console.log(`  ✅ Found YouTube embed on Deluxe Cinemas`);
+                return youtubeUrl;
+            }
+        }
+        
+        // Method 4: Look for any YouTube links in the page
+        const anyYoutubeLink = $f('a[href*="youtube.com/watch"], a[href*="youtu.be/"]').first();
+        if (anyYoutubeLink.length) {
+            console.log(`  ✅ Found YouTube link on Deluxe Cinemas page`);
+            return anyYoutubeLink.attr('href');
+        }
+        
+        // Method 5: Look for Open Graph or meta tags with YouTube
+        const ogVideo = $f('meta[property="og:video"]').attr('content');
+        if (ogVideo && (ogVideo.includes('youtube') || ogVideo.includes('embed'))) {
+            console.log(`  ✅ Found YouTube in OG video meta`);
+            if (ogVideo.includes('embed')) {
+                const videoId = ogVideo.split('embed/')[1]?.split('?')[0];
+                return `https://www.youtube.com/watch?v=${videoId}`;
+            }
+            return ogVideo;
+        }
+        
     } catch(e) {
         console.warn(`  ⚠️ Failed to fetch trailer from Deluxe Cinemas: ${e.message}`);
     }
@@ -605,10 +683,6 @@ async function main() {
     for (let i = 0; i < payload.featured_films.length; i++) {
         updatedFeatured.push(await buildBlock(payload.featured_films[i], baseFeaturedBlock, true, i+1));
     }
-    // Prepend header to the first featured block
-    if (updatedFeatured.length > 0) {
-        updatedFeatured[0] = featuredHeader + updatedFeatured[0];
-    }
 
     console.log("\n   📌 Building Now Showing Films...");
     let updatedNowShowing = [];
@@ -617,8 +691,28 @@ async function main() {
     }
 
     console.log("\n--- STEP 5: Assembling Final HTML ---");
-    let newNsContent = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1")) + updatedNowShowing.join("");
-    let finalHtml = newHtmlStr.substring(0, f1Start) + updatedFeatured.join("") + newNsContent + newHtmlStr.substring(csStart);
+    
+    // Properly assemble the final HTML:
+    // 1. Keep everything BEFORE the featured films section (intro, header)
+    // 2. Add the FEATURED FILMS header (not the whole featuredHeader which includes wrong stuff)
+    // 3. Add the featured film blocks
+    // 4. Add the NOW SHOWING header
+    // 5. Add the now showing blocks
+    // 6. Keep everything AFTER the now showing section
+    
+    // Get the FEATURED FILMS header section (lines 91-98 in template)
+    const featuredSectionHeader = newHtmlStr.substring(f1Start, f2Start);
+    
+    // Get NOW SHOWING section header (lines 165-173 in template)
+    const nsSectionHeader = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"));
+    
+    // Build final HTML properly
+    let finalHtml = newHtmlStr.substring(0, f1Start) + 
+                   featuredSectionHeader + 
+                   updatedFeatured.join("") + 
+                   nsSectionHeader + 
+                   updatedNowShowing.join("") + 
+                   newHtmlStr.substring(csStart);
     
     const outputPath = path.join(WORKSPACE_DIR, "final_dynamic_campaign.html");
     fs.writeFileSync(outputPath, finalHtml);
