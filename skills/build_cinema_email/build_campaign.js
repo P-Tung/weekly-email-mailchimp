@@ -561,21 +561,11 @@ async function main() {
         $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
         
         // Clear any extra description fields in the template to prevent duplicate content
-        // Using .text('') to ensure content is cleared even if remove doesn't work
-        $b('[mc\\:edit="movie_description_2"]').each((i, el) => { 
-            console.log(`   🧹 Clearing movie_description_2`);
-            $b(el).text(''); 
-        });
-        $b('[mc\\:edit="movie_description_3"]').each((i, el) => { 
-            console.log(`   🧹 Clearing movie_description_3`);
-            $b(el).text(''); 
-        });
-        $b('[mc\\:edit="featured_film_description_2"]').each((i, el) => { 
-            $b(el).text(''); 
-        });
-        $b('[mc\\:edit="featured_film_description_3"]').each((i, el) => { 
-            $b(el).text(''); 
-        });
+        // Use .html('') which is more reliable than .text('') or .remove()
+        $b('p[mc\\:edit="movie_description_2"]').html('');
+        $b('p[mc\\:edit="movie_description_3"]').html('');
+        $b('p[mc\\:edit="featured_film_description_2"]').html('');
+        $b('p[mc\\:edit="featured_film_description_3"]').html('');
         
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
