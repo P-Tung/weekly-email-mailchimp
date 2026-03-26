@@ -15,6 +15,89 @@ const WORKSPACE_DIR = path.resolve(__dirname, "../");
 
 const FALLBACK_IMAGE = "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg";
 
+async function getMXfilmCredentials() {
+    const mxCredsPath = "/home/ubuntu/.openclaw/workspace/.mx_api_credentials";
+    if (!fs.existsSync(mxCredsPath)) return null;
+    const content = fs.readFileSync(mxCredsPath, "utf-8");
+    const username = content.match(/MX_USERNAME=(.+)/)?.[1];
+    const password = content.match(/MX_PASSWORD=(.+)/)?.[1];
+    return username && password ? { username, password } : null;
+}
+
+let mxTokenCache = null;
+async function getMXfilmToken() {
+    if (mxTokenCache) return mxTokenCache;
+    const creds = await getMXfilmCredentials();
+    if (!creds) return null;
+    try {
+        const res = await fetch("https://film.moviexchange.com/api/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ grant_type: "password", client_id: "MovieXchangeApi", ...creds })
+        });
+        const data = await res.json();
+        mxTokenCache = data.access_token || null;
+        return mxTokenCache;
+    } catch(e) { return null; }
+}
+
+async function getMXfilmTrailer(title) {
+    const token = await getMXfilmToken();
+    if (!token) return null;
+    try {
+        const res = await fetch(`https://film.moviexchange.com/api/v1/films?title=${encodeURIComponent(title)}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const films = await res.json();
+        const film = films.find(f => f.title?.toLowerCase().includes(title.toLowerCase()));
+        return film?.trailerUrl || film?.videoUrl || null;
+    } catch(e) { return null; }
+}
+
+async function getMXfilmPoster(title) {
+    const token = await getMXfilmToken();
+    if (!token) return null;
+    try {
+        const res = await fetch(`https://film.moviexchange.com/api/v1/films?title=${encodeURIComponent(title)}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const films = await res.json();
+        const film = films.find(f => f.title?.toLowerCase().includes(title.toLowerCase()));
+        return film?.posterUrl || film?.imageUrl || film?.thumbnailUrl || null;
+    } catch(e) { return null; }
+}
+
+async function getDeluxeTrailer(title) {
+    console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
+    try {
+        const res = await fetch(`https://www.deluxecinemas.co.nz/`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        
+        const filmLink = $(`a:contains("${title}")`).first();
+        if (filmLink.length) {
+            const href = filmLink.attr('href');
+            if (href) {
+                const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+                const filmHtml = await filmRes.text();
+                const $f = cheerio.load(filmHtml);
+                
+                const trailerLink = $f('a:contains("WATCH TRAILER"), a:contains("Watch Trailer"), a:contains("Trailer")').first();
+                if (trailerLink.length) {
+                    const trailerHref = trailerLink.attr('href');
+                    if (trailerHref) {
+                        console.log(`  ✅ Found trailer on Deluxe Cinemas`);
+                        return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
+                    }
+                }
+            }
+        }
+    } catch(e) {
+        console.warn(`  ⚠️ Failed to fetch trailer from Deluxe Cinemas: ${e.message}`);
+    }
+    return null;
+}
+
 async function uploadImage(buffer, filename) {
     console.log(`  📤 Uploading ${filename} to Mailchimp CDN...`);
     const content = buffer.toString('base64');
@@ -121,17 +204,18 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             console.log(`  ⚠️ [Featured] Using Veezi poster (may be small/upscaled)`);
         }
     } else {
-        // FOR NOW SHOWING FILMS (portrait): Priority is Veezi > Deluxe > TMDB
+        // FOR NOW SHOWING FILMS (portrait): Priority is MXfilm > Deluxe > Veezi
         console.log(`  🔍 [Now Showing] Finding poster image for: ${title}`);
         
-        // 1. Try Veezi first (primary source for portrait posters)
-        if (url && url.startsWith('http')) {
-            finalUrl = url;
-            source = "Veezi";
-            console.log(`  ✅ [Now Showing] Using Veezi poster`);
+        // 1. Try MXfilm first (highest quality posters - typically 800px+)
+        const mxPoster = await getMXfilmPoster(title);
+        if (mxPoster) {
+            finalUrl = mxPoster;
+            source = "MXfilm (highest quality)";
+            console.log(`  ✅ [Now Showing] Using MXfilm poster`);
         }
         
-        // 2. If Veezi fails, try Deluxe Cinemas
+        // 2. If MXfilm fails, try Deluxe Cinemas
         if (!finalUrl) {
             const deluxePoster = await getDeluxeCinemaPoster(title);
             if (deluxePoster) {
@@ -141,7 +225,12 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             }
         }
         
-        // 3. TMDB doesn't have good portrait poster URLs easily, skip
+        // 3. Last resort: use Veezi poster
+        if (!finalUrl && url && url.startsWith('http')) {
+            finalUrl = url;
+            source = "Veezi (fallback)";
+            console.log(`  ⚠️ [Now Showing] Using Veezi poster (fallback)`);
+        }
     }
 
     if (!finalUrl || !finalUrl.startsWith('http')) {
@@ -317,6 +406,40 @@ async function main() {
 
     console.log("\n--- STEP 4: Building Film Blocks ---");
 
+    // Auto-generate intro text with featured film highlights
+    console.log("\n   ✍️ Generating intro text with featured film highlights...");
+    let introText = "";
+    if (payload.featured_films && payload.featured_films.length > 0) {
+        const filmNames = payload.featured_films.map(f => {
+            // Try to get proper title from metadata
+            const vKey = Object.keys(metadata).find(k => 
+                k.toLowerCase().includes(f.toLowerCase()) || 
+                f.toLowerCase().includes(k.toLowerCase())
+            );
+            return vKey || f;
+        });
+        
+        if (filmNames.length === 1) {
+            introText = `This week, we're excited to feature "${filmNames[0]}" - don't miss this amazing film on the big screen!`;
+        } else if (filmNames.length === 2) {
+            introText = `This week, we're excited to feature "${filmNames[0]}" and "${filmNames[1]}" - two incredible films you won't want to miss!`;
+        } else {
+            introText = `This week, we're excited to feature ${filmNames.slice(0, -1).map(f => `"${f}"`).join(", ")} and "${filmNames[filmNames.length - 1]}" - amazing films you won't want to miss!`;
+        }
+        console.log(`   ✅ Generated intro: "${introText.substring(0, 60)}..."`);
+    }
+    
+    // Replace intro_text_top in the HTML
+    const introEditPattern = /mc:edit="intro_text_top"/;
+    if (introEditPattern.test(newHtmlStr)) {
+        const $intro = cheerio.load(newHtmlStr, null, false);
+        $intro('[mc\\:edit="intro_text_top"]').text(introText);
+        newHtmlStr = $intro.html();
+        console.log(`   ✅ Intro text updated in template`);
+    } else {
+        console.log(`   ⚠️ intro_text_top tag not found in template`);
+    }
+
     async function buildBlock(filmTitle, baseTemplate, isFeatured, index) {
         console.log(`\n   ${isFeatured ? "⭐" : "🎬"} Processing: ${filmTitle}`);
         
@@ -360,6 +483,31 @@ async function main() {
         console.log(`   🖼️ Fetching and uploading poster...`);
         let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured, meta.title);
 
+        // Fetch trailer URL - MXfilm first, fallback to Deluxe
+        console.log(`   🎬 Fetching trailer link...`);
+        let trailerUrl = null;
+        
+        // 1. Try MXfilm API first
+        const mxTrailer = await getMXfilmTrailer(filmTitle);
+        if (mxTrailer) {
+            trailerUrl = mxTrailer;
+            console.log(`   ✅ Found trailer from MXfilm API`);
+        }
+        
+        // 2. Fallback to Deluxe Cinemas if MXfilm fails
+        if (!trailerUrl) {
+            trailerUrl = await getDeluxeTrailer(filmTitle);
+            if (trailerUrl) {
+                console.log(`   ✅ Found trailer from Deluxe Cinemas`);
+            }
+        }
+        
+        // 3. Default to Deluxe homepage if no trailer found
+        if (!trailerUrl) {
+            trailerUrl = "https://deluxecinemas.co.nz/";
+            console.log(`   ⚠️ No trailer found, using default link`);
+        }
+
         const $b = cheerio.load(baseTemplate, null, false);
         
         let tagTitle = isFeatured ? 'featured_film_title' : 'movie_title';
@@ -382,7 +530,19 @@ async function main() {
         
         $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); 
         $b('a:contains("Book now")').attr('href', earliestUrl);
-        $b('a:contains("View Trailer")').attr('href', "https://deluxecinemas.co.nz/");
+        
+        // Update trailer link - handle both featured and regular film trailers
+        const trailerLink = $b('a:contains("View Trailer")');
+        if (trailerLink.length) {
+            trailerLink.attr('href', trailerUrl);
+        }
+        
+        // Also check for mc:edit tags for featured film trailer
+        if (isFeatured) {
+            $b(`[mc\\:edit="featured_film_trailer"]`).attr('href', trailerUrl);
+        }
+        $b(`[mc\\:edit="movie_trailer"]`).attr('href', trailerUrl);
+        
         $b(`a:has(img[mc\\:edit="${tagPoster}"])`).attr('href', earliestUrl);
 
         let finalHtml = $b.html();
