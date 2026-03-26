@@ -81,13 +81,44 @@ async function getDeluxeTrailer(title) {
                 const filmHtml = await filmRes.text();
                 const $f = cheerio.load(filmHtml);
                 
-                const trailerLink = $f('a:contains("WATCH TRAILER"), a:contains("Watch Trailer"), a:contains("Trailer")').first();
+                // First try: Look for explicit "Watch Trailer" button/link
+                let trailerLink = $f('a:contains("WATCH TRAILER"), a:contains("Watch Trailer"), a:contains("Trailer")').first();
                 if (trailerLink.length) {
                     const trailerHref = trailerLink.attr('href');
                     if (trailerHref) {
+                        // Check if it's a YouTube link
+                        if (trailerHref.includes('youtube.com') || trailerHref.includes('youtu.be')) {
+                            console.log(`  ✅ Found YouTube trailer link on Deluxe Cinemas`);
+                            return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
+                        }
                         console.log(`  ✅ Found trailer on Deluxe Cinemas`);
                         return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
                     }
+                }
+                
+                // Second try: Look for YouTube embeds in the page
+                const youtubeEmbed = $f('iframe[src*="youtube"], iframe[src*="youtu.be"]').first();
+                if (youtubeEmbed.length) {
+                    const src = youtubeEmbed.attr('src');
+                    if (src) {
+                        // Convert embed URL to watch URL
+                        let youtubeUrl = src;
+                        if (src.includes('embed/')) {
+                            const videoId = src.split('embed/')[1]?.split('?')[0];
+                            if (videoId) {
+                                youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                            }
+                        }
+                        console.log(`  ✅ Found YouTube embed on Deluxe Cinemas`);
+                        return youtubeUrl;
+                    }
+                }
+                
+                // Third try: Look for any YouTube links in the page
+                const anyYoutubeLink = $f('a[href*="youtube.com/watch"], a[href*="youtu.be/"]').first();
+                if (anyYoutubeLink.length) {
+                    console.log(`  ✅ Found YouTube link on Deluxe Cinemas page`);
+                    return anyYoutubeLink.attr('href');
                 }
             }
         }
@@ -394,12 +425,15 @@ async function main() {
     let newHtmlStr = html.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
     console.log(`   ✅ Template loaded and date range updated`);
 
-    const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
-    const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
+    const f1Start = newHtmlStr.indexOf("<!-- ========== 3. FEATURED FILMS");
+    const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
+    const f2End = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING");
     const nsStart = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING"); 
     const csStart = newHtmlStr.indexOf("<!-- ========== 5. COMING SOON");
     
-    const baseF1Block = newHtmlStr.substring(f1Start, f2Start);
+    // Extract entire FEATURED FILMS section (header + all blocks)
+    const featuredHeader = newHtmlStr.substring(f1Start, f2Start); // Header only
+    const baseFeaturedBlock = newHtmlStr.substring(f2Start, f2End); // First block template
     const nsContent = newHtmlStr.substring(newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"), csStart);
     const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
     const baseNsBlock = nsBlocks[0]; 
@@ -526,6 +560,12 @@ async function main() {
         $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
         $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
         
+        // Clear any extra description fields in the template to prevent duplicate content
+        $b(`[mc\\:edit="movie_description_2"]`).remove();
+        $b(`[mc\\:edit="movie_description_3"]`).remove();
+        $b(`[mc\\:edit="featured_film_description_2"]`).remove();
+        $b(`[mc\\:edit="featured_film_description_3"]`).remove();
+        
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
         $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); 
@@ -562,7 +602,11 @@ async function main() {
     console.log("\n   📌 Building Featured Films...");
     let updatedFeatured = [];
     for (let i = 0; i < payload.featured_films.length; i++) {
-        updatedFeatured.push(await buildBlock(payload.featured_films[i], baseF1Block, true, i+1));
+        updatedFeatured.push(await buildBlock(payload.featured_films[i], baseFeaturedBlock, true, i+1));
+    }
+    // Prepend header to the first featured block
+    if (updatedFeatured.length > 0) {
+        updatedFeatured[0] = featuredHeader + updatedFeatured[0];
     }
 
     console.log("\n   📌 Building Now Showing Films...");
