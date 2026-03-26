@@ -560,13 +560,6 @@ async function main() {
         $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
         $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
         
-        // Remove any extra description fields from the template
-        let blockHtml = $b.html();
-        blockHtml = blockHtml.replace(/<p mc:edit="movie_description_2"[^>]*>.*?<\/p>/gi, '');
-        blockHtml = blockHtml.replace(/<p mc:edit="movie_description_3"[^>]*>.*?<\/p>/gi, '');
-        blockHtml = blockHtml.replace(/<p mc:edit="featured_film_description_2"[^>]*>.*?<\/p>/gi, '');
-        blockHtml = blockHtml.replace(/<p mc:edit="featured_film_description_3"[^>]*>.*?<\/p>/gi, '');
-        
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
         $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); 
@@ -587,6 +580,13 @@ async function main() {
         $b(`a:has(img[mc\\:edit="${tagPoster}"])`).attr('href', earliestUrl);
 
         let finalHtml = $b.html();
+        
+        // Remove extra description fields from template that shouldn't be there
+        finalHtml = finalHtml.replace(/<p\s+mc:edit="movie_description_2"[^>]*>[\s\S]*?<\/p>/gi, '');
+        finalHtml = finalHtml.replace(/<p\s+mc:edit="movie_description_3"[^>]*>[\s\S]*?<\/p>/gi, '');
+        finalHtml = finalHtml.replace(/<p\s+mc:edit="featured_film_description_2"[^>]*>[\s\S]*?<\/p>/gi, '');
+        finalHtml = finalHtml.replace(/<p\s+mc:edit="featured_film_description_3"[^>]*>[\s\S]*?<\/p>/gi, '');
+        
         if (isFeatured) {
             let numStr = index === 1 ? "ONE" : "TWO";
             let lowerStr = index === 1 ? "one" : "two";
