@@ -9,18 +9,34 @@ A 1-shot workflow to build and send a cinema email campaign. The script automati
 
 ## Quick Start
 
+### Mode A — HTML only (no Mailchimp push, for review/testing)
 ```bash
 # 1. Create campaign payload file
 cat > campaign_payload.json << 'EOF'
 {
   "dates": "March 26 to March 29",
-  "featured_films": ["I Swear", "The North"],
-  "now_showing": ["Tenor", "Holy Days", "Epic: Elvis Presley in Concert"],
+  "featured_films": ["I Swear", "Midwinter Break"],
+  "now_showing": ["Project Hail Mary", "Tenor: My Name is Pati", "The Devil Wears Prada 2"]
+}
+EOF
+
+# 2. Generate HTML only (output: final_claude.html)
+node scripts/build_html_only.js campaign_payload.json final_claude.html
+```
+
+### Mode B — Full push to Mailchimp (requires MATON_API_KEY)
+```bash
+# 1. Create campaign payload file (add test_email for test send)
+cat > campaign_payload.json << 'EOF'
+{
+  "dates": "March 26 to March 29",
+  "featured_films": ["I Swear", "Midwinter Break"],
+  "now_showing": ["Project Hail Mary", "Tenor: My Name is Pati", "The Devil Wears Prada 2"],
   "test_email": "tungphamkindle@gmail.com"
 }
 EOF
 
-# 2. Run the build script
+# 2. Run the full build + push script
 node scripts/build_and_push.js campaign_payload.json
 ```
 
@@ -28,7 +44,9 @@ node scripts/build_and_push.js campaign_payload.json
 
 ## ⚠️ Required: Environment Variables
 
-Before running, you must set these variables:
+`build_html_only.js` requires **no API keys** — it generates the HTML directly.
+
+`build_and_push.js` requires:
 
 ```bash
 # Maton API key (for Mailchimp)
@@ -39,7 +57,7 @@ MX_USERNAME=
 MX_PASSWORD=
 ```
 
-The script will fail with an error if `MATON_API_KEY` is not set.
+The push script will fail immediately if `MATON_API_KEY` is not set.
 
 ---
 
@@ -49,12 +67,14 @@ Marketers will send prompts in this format:
 
 ```
 Please clone this repository:
-https://github.com/P-Tung/weekly-email-mailchimp.git (if not already cloned), 
-and pull the latest code, navigate into it, and use the Build Cinema 
+https://github.com/P-Tung/weekly-email-mailchimp.git (if not already cloned),
+and pull the latest code, navigate into it, and use the Build Cinema
 Email skill to generate the new weekly campaign.
 
 Execution Context:
 - Dates: [date range]
+- Workflow Mode: html-only (just generate final_claude.html, no Mailchimp push)
+  OR
 - Workflow Mode: testing (Draft + Test send to [email])
 
 Films to include:
@@ -66,23 +86,33 @@ Films to include:
 - [film 3]
 ```
 
+### Workflow Mode mapping
+
+**Routing rule:** If the prompt contains "dont push", "no push", "just generate html", or a specific output filename — always use `build_html_only.js`, regardless of what the mode label says.
+
+| Marketer says | Script to run |
+|---|---|
+| `html-only` / `just generate html` / no push / "dont push to mailchimp" | `node scripts/build_html_only.js campaign_payload.json [output_filename.html]` |
+| `testing` with no-push qualifier (e.g. "just generate html file named: X") | `node scripts/build_html_only.js campaign_payload.json [output_filename.html]` |
+| `testing` / `Draft + Test send` (actual Mailchimp send) | `node scripts/build_and_push.js campaign_payload.json` (needs `MATON_API_KEY`) |
+| `production` / `send` | `node scripts/build_and_push.js campaign_payload.json` (no `test_email` in payload) |
+
 ### Example Prompt:
 
 ```
-Please clone this repository:
-https://github.com/P-Tung/weekly-email-mailchimp.git
-
 Execution Context:
-- Dates: March 26 to April 29
-- Workflow Mode: testing (Draft + Test send to tungphamkindle@gmail.com)
+- Dates: March 27 to April 29
+- Workflow Mode: html-only (just generate final_claude.html)
 
 Films to include:
 - Featured film one: I Swear
-- Featured film two: The North
+- Featured film two: Midwinter Break
 - Now showing films:
-- The Time Traveller's Guide to Hamilton Gardens
+- Project Hail Mary
+- Tenor: My Name is Pati
 - The Devil Wears Prada 2
-- Caterpillar
+- The North
+- The Time Traveller's Guide to Hamilton Gardens
 ```
 
 ---
@@ -259,7 +289,8 @@ The email has these sections:
 | Path | Description |
 |------|-------------|
 | `cinema-email-master-template-2.html` | Source HTML template |
-| `scripts/build_and_push.js` | Build and push script |
+| `scripts/build_html_only.js` | **HTML-only build** (no API key needed, outputs `final_claude.html`) |
+| `scripts/build_and_push.js` | Full build + Mailchimp push (requires `MATON_API_KEY`) |
 | `goal-example/goal-example.html` | Reference output (March 14-20 example) |
 | `skills/build_cinema_email/references/template-tags.md` | mc:edit tag reference |
 | `skills/build_cinema_email/references/payload-examples.md` | Payload examples |

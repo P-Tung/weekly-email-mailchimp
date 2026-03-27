@@ -67,28 +67,72 @@ async function getMXfilmPoster(title) {
     } catch(e) { return null; }
 }
 
+function extractYouTubeId(html) {
+    const patterns = [
+        /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+        /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+        /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+        /data-video-key="([a-zA-Z0-9_-]{11})"/,
+        /data-youtube-id="([a-zA-Z0-9_-]{11})"/,
+        /data-video-id="([a-zA-Z0-9_-]{11})"/,
+        /"key"\s*:\s*"([a-zA-Z0-9_-]{11})"/,
+    ];
+    for (const p of patterns) {
+        const m = html.match(p);
+        if (m) return m[1];
+    }
+    return null;
+}
+
+async function getTMDBTrailer(title) {
+    console.log(`  🔍 Searching TMDB for YouTube trailer: ${title}`);
+    try {
+        const searchRes = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const searchHtml = await searchRes.text();
+        const movieMatch = searchHtml.match(/href="\/movie\/(\d+)(-[^"]*)?"/);
+        if (!movieMatch) return null;
+        const movieId = movieMatch[1];
+
+        // Fetch the movie page — TMDB embeds data-site="YouTube" data-id="VIDEO_ID" in the initial HTML
+        const movieRes = await fetch(`https://www.themoviedb.org/movie/${movieId}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const movieHtml = await movieRes.text();
+
+        // Primary: look for YouTube play_trailer link with data-site + data-id
+        const ytSiteMatch = movieHtml.match(/data-site="YouTube"[^>]*data-id="([a-zA-Z0-9_-]{11})"/);
+        const ytIdMatch = movieHtml.match(/data-id="([a-zA-Z0-9_-]{11})"[^>]*data-site="YouTube"/);
+        const ytId = (ytSiteMatch && ytSiteMatch[1]) || (ytIdMatch && ytIdMatch[1]) || extractYouTubeId(movieHtml);
+
+        if (ytId) {
+            const ytUrl = `https://www.youtube.com/watch?v=${ytId}`;
+            console.log(`  ✅ Found TMDB YouTube trailer: ${ytUrl}`);
+            return ytUrl;
+        }
+    } catch(e) {
+        console.warn(`  ⚠️ TMDB trailer search failed: ${e.message}`);
+    }
+    return null;
+}
+
 async function getDeluxeTrailer(title) {
     console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
     try {
         const res = await fetch(`https://www.deluxecinemas.co.nz/`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const html = await res.text();
         const $ = cheerio.load(html);
-        
+
         const filmLink = $(`a:contains("${title}")`).first();
         if (filmLink.length) {
             const href = filmLink.attr('href');
             if (href) {
                 const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { headers: { "User-Agent": "Mozilla/5.0" } });
                 const filmHtml = await filmRes.text();
-                const $f = cheerio.load(filmHtml);
-                
-                const trailerLink = $f('a:contains("WATCH TRAILER"), a:contains("Watch Trailer"), a:contains("Trailer")').first();
-                if (trailerLink.length) {
-                    const trailerHref = trailerLink.attr('href');
-                    if (trailerHref) {
-                        console.log(`  ✅ Found trailer on Deluxe Cinemas`);
-                        return trailerHref.startsWith('http') ? trailerHref : `https://www.deluxecinemas.co.nz${trailerHref}`;
-                    }
+
+                // First: look for any YouTube video ID embedded in the page
+                const ytId = extractYouTubeId(filmHtml);
+                if (ytId) {
+                    const ytUrl = `https://www.youtube.com/watch?v=${ytId}`;
+                    console.log(`  ✅ Found YouTube trailer on Deluxe Cinemas: ${ytUrl}`);
+                    return ytUrl;
                 }
             }
         }
@@ -335,6 +379,49 @@ async function getVeeziMetadata() {
     return meta;
 }
 
+function generateIntroHtml(featuredFilms, nowShowing, dates, metadata) {
+    // Highlight featured films + up to 2 now-showing films (max 4 total)
+    const highlightFilms = [...featuredFilms];
+    const extras = Math.min(2, 4 - highlightFilms.length);
+    for (let i = 0; i < extras && i < nowShowing.length; i++) {
+        highlightFilms.push(nowShowing[i]);
+    }
+
+    const emojis = ['⭐', '🎬', '🎭', '🌟', '🎥', '✨'];
+
+    let filmLines = '';
+    highlightFilms.forEach((filmTitle, idx) => {
+        const vKey = Object.keys(metadata).find(k =>
+            k.toLowerCase().includes(filmTitle.toLowerCase()) ||
+            filmTitle.toLowerCase().includes(k.toLowerCase())
+        );
+        const meta = vKey ? metadata[vKey] : null;
+        const displayTitle = (meta ? meta.title : filmTitle)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        const synopsis = (meta && meta.synopsis) ? meta.synopsis : '';
+        let firstSentence = synopsis.split(/(?<=[.!?])\s/)[0] || synopsis.split(/[.!?]/)[0] || '';
+        firstSentence = firstSentence.trim();
+        if (firstSentence.length > 10) {
+            firstSentence = firstSentence.replace(/[.!?]*$/, '') + '.';
+        } else {
+            firstSentence = 'Now showing at Deluxe Cinemas.';
+        }
+        firstSentence = firstSentence.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        const emoji = emojis[idx % emojis.length];
+        filmLines += `<p style="margin: 0 0 2px 0; font-size: 17px; line-height: 1.4;"><strong style="font-family: Georgia, 'Times New Roman', serif; font-weight: 600; color: #1f1f1f;">${emoji} ${displayTitle}</strong></p>\n`;
+        filmLines += `<p style="margin: 0 0 12px 0; font-size: 16px; color: #3d3d3d; line-height: 1.45;">${firstSentence}</p>\n`;
+    });
+
+    const displayDates = dates.replace(/\s+to\s+/i, ' \u2013 ');
+
+    return `<p style="margin: 0 0 4px 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; color: #1f1f1f; line-height: 1.45;">Dear valued cinema-goer</p>
+<p style="margin: 0 0 16px 0; font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 600; color: #1f1f1f; line-height: 1.4;">Here\u2019s what\u2019s new and unmissable at Deluxe this week:</p>
+${filmLines}<p style="margin: 0 0 6px 0; font-size: 14px; color: #5a5a5a; line-height: 1.4;">${displayDates}</p>
+<p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-style: italic; color: #1f1f1f; line-height: 1.45;">See you at the Movies!</p>`;
+}
+
 function formatDate(iso) {
     const d = new Date(iso);
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -394,51 +481,37 @@ async function main() {
     let newHtmlStr = html.replace(/March \d+\s*[\u2013-]\s*March \d+/g, payload.dates);
     console.log(`   ✅ Template loaded and date range updated`);
 
-    const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
-    const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
-    const nsStart = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING"); 
-    const csStart = newHtmlStr.indexOf("<!-- ========== 5. COMING SOON");
-    
-    const baseF1Block = newHtmlStr.substring(f1Start, f2Start);
-    const nsContent = newHtmlStr.substring(newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"), csStart);
-    const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
-    const baseNsBlock = nsBlocks[0]; 
-
     console.log("\n--- STEP 4: Building Film Blocks ---");
 
-    // Auto-generate intro text with featured film highlights
-    console.log("\n   ✍️ Generating intro text with featured film highlights...");
-    let introText = "";
-    if (payload.featured_films && payload.featured_films.length > 0) {
-        const filmNames = payload.featured_films.map(f => {
-            // Try to get proper title from metadata
-            const vKey = Object.keys(metadata).find(k => 
-                k.toLowerCase().includes(f.toLowerCase()) || 
-                f.toLowerCase().includes(k.toLowerCase())
-            );
-            return vKey || f;
-        });
-        
-        if (filmNames.length === 1) {
-            introText = `This week, we're excited to feature "${filmNames[0]}" - don't miss this amazing film on the big screen!`;
-        } else if (filmNames.length === 2) {
-            introText = `This week, we're excited to feature "${filmNames[0]}" and "${filmNames[1]}" - two incredible films you won't want to miss!`;
-        } else {
-            introText = `This week, we're excited to feature ${filmNames.slice(0, -1).map(f => `"${f}"`).join(", ")} and "${filmNames[filmNames.length - 1]}" - amazing films you won't want to miss!`;
-        }
-        console.log(`   ✅ Generated intro: "${introText.substring(0, 60)}..."`);
-    }
-    
-    // Replace intro_text_top in the HTML
-    const introEditPattern = /mc:edit="intro_text_top"/;
-    if (introEditPattern.test(newHtmlStr)) {
-        const $intro = cheerio.load(newHtmlStr, null, false);
-        $intro('[mc\\:edit="intro_text_top"]').text(introText);
-        newHtmlStr = $intro.html();
+    // Auto-generate intro HTML matching the template structure
+    console.log("\n   ✍️ Generating intro text...");
+    const introHtml = generateIntroHtml(payload.featured_films, payload.now_showing, payload.dates, metadata);
+    console.log(`   ✅ Generated intro text`);
+
+    // Update intro text with REGEX (not Cheerio) so the document structure and all
+    // character-offset indices remain valid. Cheerio's $.html() strips the DOCTYPE /
+    // <html><head><body> wrapper, which shifts every subsequent indexOf result.
+    const introReplacePattern = /(<div\s[^>]*mc:edit="intro_text_top"[^>]*>)[\s\S]*?(<\/div>)/;
+    if (introReplacePattern.test(newHtmlStr)) {
+        newHtmlStr = newHtmlStr.replace(introReplacePattern, `$1${introHtml}$2`);
         console.log(`   ✅ Intro text updated in template`);
     } else {
         console.log(`   ⚠️ intro_text_top tag not found in template`);
     }
+
+    // Compute all slice indices AFTER the intro update so they stay in sync
+    const f1Start = newHtmlStr.indexOf("<!-- FEATURED FILM ONE");
+    const f2Start = newHtmlStr.indexOf("<!-- FEATURED FILM TWO");
+    const nsStart = newHtmlStr.indexOf("<!-- ========== 4. NOW SHOWING");
+    const csStart = newHtmlStr.indexOf("<!-- ========== 5. COMING SOON");
+    const closeFeaturedBorderStart = newHtmlStr.indexOf("<!-- Close Featured Film card border");
+    const closeProgrammeBorderStart = newHtmlStr.indexOf("<!-- Close programme card border");
+    const nsFilm1Start = newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1");
+
+    const baseF1Block = newHtmlStr.substring(f1Start, f2Start);
+    const nsContent = newHtmlStr.substring(nsFilm1Start, closeProgrammeBorderStart);
+    const nsBlocks = nsContent.split(/(?=<!-- NOW SHOWING FILM \d+)/).filter(b => b.trim().length > 0);
+    const baseNsBlock = nsBlocks[0];
 
     async function buildBlock(filmTitle, baseTemplate, isFeatured, index) {
         console.log(`\n   ${isFeatured ? "⭐" : "🎬"} Processing: ${filmTitle}`);
@@ -483,26 +556,28 @@ async function main() {
         console.log(`   🖼️ Fetching and uploading poster...`);
         let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured, meta.title);
 
-        // Fetch trailer URL - MXfilm first, fallback to Deluxe
+        // Fetch trailer URL - MXfilm > TMDB > Deluxe > fallback
         console.log(`   🎬 Fetching trailer link...`);
         let trailerUrl = null;
-        
+
         // 1. Try MXfilm API first
         const mxTrailer = await getMXfilmTrailer(filmTitle);
         if (mxTrailer) {
             trailerUrl = mxTrailer;
             console.log(`   ✅ Found trailer from MXfilm API`);
         }
-        
-        // 2. Fallback to Deluxe Cinemas if MXfilm fails
+
+        // 2. Try TMDB for YouTube link
+        if (!trailerUrl) {
+            trailerUrl = await getTMDBTrailer(filmTitle);
+        }
+
+        // 3. Try Deluxe Cinemas page for embedded YouTube link
         if (!trailerUrl) {
             trailerUrl = await getDeluxeTrailer(filmTitle);
-            if (trailerUrl) {
-                console.log(`   ✅ Found trailer from Deluxe Cinemas`);
-            }
         }
-        
-        // 3. Default to Deluxe homepage if no trailer found
+
+        // 4. Default to Deluxe homepage if no trailer found
         if (!trailerUrl) {
             trailerUrl = "https://deluxecinemas.co.nz/";
             console.log(`   ⚠️ No trailer found, using default link`);
@@ -525,7 +600,11 @@ async function main() {
         let tagTagline = isFeatured ? 'featured_film_tagline' : 'movie_tagline';
         $b(`[mc\\:edit="${tagTagline}"]`).text(tagline);
         $b(`[mc\\:edit="${tagDesc}"]`).html(desc + "<br><br>");
-        
+
+        // Clear leftover template example content from extra description paragraphs
+        $b('[mc\\:edit="movie_description_2"]').remove();
+        $b('[mc\\:edit="movie_description_3"]').remove();
+
         $b(`img[mc\\:edit="${tagPoster}"]`).attr('src', cdnUrl);
         
         $b(`[mc\\:edit="movie_showtimes"]`).html(showtimesHtml); 
@@ -572,8 +651,19 @@ async function main() {
     }
 
     console.log("\n--- STEP 5: Assembling Final HTML ---");
-    let newNsContent = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1")) + updatedNowShowing.join("");
-    let finalHtml = newHtmlStr.substring(0, f1Start) + updatedFeatured.join("") + newNsContent + newHtmlStr.substring(csStart);
+    // Sections extracted from the template (preserve border-closing tables)
+    const featuredClosingSection  = newHtmlStr.substring(closeFeaturedBorderStart, nsStart);   // "Close Featured Film card border" table
+    const nowShowingHeader        = newHtmlStr.substring(nsStart, nsFilm1Start);               // "Now Showing" heading table
+    const programmeClosingSection = newHtmlStr.substring(closeProgrammeBorderStart, csStart);  // "Close programme card border" table
+
+    let finalHtml =
+        newHtmlStr.substring(0, f1Start) +    // header, intro, "Featured Film" section heading
+        updatedFeatured.join("") +             // built featured film blocks
+        featuredClosingSection +               // bottom border of featured card
+        nowShowingHeader +                     // "Now Showing" heading
+        updatedNowShowing.join("") +           // built now showing film blocks
+        programmeClosingSection +              // bottom border of programme card
+        newHtmlStr.substring(csStart);         // coming soon + promo + footer
     
     const outputPath = path.join(WORKSPACE_DIR, "final_dynamic_campaign.html");
     fs.writeFileSync(outputPath, finalHtml);

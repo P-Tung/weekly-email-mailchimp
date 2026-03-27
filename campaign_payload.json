@@ -1,6 +1,11 @@
 {
-  "dates": "March 27 to March 30",
-  "featured_films": ["A Complete Unknown", "The Monkey"],
-  "now_showing": ["The Last of the Mohicans", "Mufasa: The Lion King", "Squid Game", "Babygirl"],
-  "test_email": "tungphamkindle@gmail.com"
+  "dates": "March 27 to April 29",
+  "featured_films": ["I Swear", "Midwinter Break"],
+  "now_showing": [
+    "Project Hail Mary",
+    "Tenor: My Name is Pati",
+    "The Devil Wears Prada 2",
+    "The North",
+    "The Time Traveller's Guide to Hamilton Gardens"
+  ]
 }
