@@ -26,16 +26,17 @@ node scripts/build_and_push.js campaign_payload.json
 
 ---
 
-## ⚠️ Required: Environment Variable
+## ⚠️ Required: Environment Variables
 
-Before running, you must set the Maton API key:
+Before running, you must set these variables:
 
 ```bash
-# Create .env.local file
-echo "MATON_API_KEY=your_key_here" > .env.local
-
-# Or set in environment
+# Maton API key (for Mailchimp)
 export MATON_API_KEY=your_key_here
+
+# MXfilm credentials (in .env.local file)
+MX_USERNAME=
+MX_PASSWORD=
 ```
 
 The script will fail with an error if `MATON_API_KEY` is not set.

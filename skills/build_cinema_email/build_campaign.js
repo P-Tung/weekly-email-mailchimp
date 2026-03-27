@@ -15,12 +15,26 @@ const WORKSPACE_DIR = path.resolve(__dirname, "../..");
 const FALLBACK_IMAGE = "https://mcusercontent.com/983aaba19411e46e8ff025752/images/492a95d6-c361-ee10-b412-3d0fcb753d18.jpg";
 
 async function getMXfilmCredentials() {
-    const mxCredsPath = "/home/ubuntu/.openclaw/workspace/.mx_api_credentials";
-    if (!fs.existsSync(mxCredsPath)) return null;
-    const content = fs.readFileSync(mxCredsPath, "utf-8");
-    const username = content.match(/MX_USERNAME=(.+)/)?.[1];
-    const password = content.match(/MX_PASSWORD=(.+)/)?.[1];
-    return username && password ? { username, password } : null;
+    // Check multiple paths for credentials (local testing or production)
+    const possiblePaths = [
+        "/home/ubuntu/.openclaw/workspace/.mx_api_credentials",  // Production (AWS)
+        path.join(WORKSPACE_DIR, ".env.local"),                 // Local testing
+        path.join(process.env.HOME || process.env.USERPROFILE, ".mx_credentials"), // Local fallback
+    ];
+    
+    for (const credsPath of possiblePaths) {
+        if (fs.existsSync(credsPath)) {
+            const content = fs.readFileSync(credsPath, "utf-8");
+            const username = content.match(/MX_USERNAME=(.+)/)?.[1];
+            const password = content.match(/MX_PASSWORD=(.+)/)?.[1];
+            if (username && password) {
+                console.log(`   ✅ Loaded MX credentials from: ${credsPath}`);
+                return { username, password };
+            }
+        }
+    }
+    console.log(`   ⚠️ No MX credentials found in any of: ${possiblePaths.join(", ")}`);
+    return null;
 }
 
 let mxTokenCache = null;
@@ -257,25 +271,66 @@ async function getDeluxeCinemaPoster(title) {
     return null;
 }
 
-async function getTMDBBanner(title) {
-    console.log(`  🔍 Searching TMDB for banner: ${title}`);
+async function getTMDBPoster(title) {
+    console.log(`  🔍 Searching TMDB for poster: ${title}`);
     try {
-        const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        // 1. Search for movie
+        const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { 
+            headers: { "User-Agent": "Mozilla/5.0" } 
+        });
         const html = await res.text();
+        
+        // 2. Find movie link
         const match = html.match(/href="(\/movie\/\d+[^"]*)"/);
-        if (match) {
-            const mRes = await fetch(`https://www.themoviedb.org${match[1]}`, { headers: { "User-Agent": "Mozilla/5.0" }});
-            const mHtml = await mRes.text();
-            const bMatch = mHtml.match(/url\('([^']+w1920[^']+)'\)/);
-            if (bMatch) {
-                console.log(`  ✅ Found TMDB banner`);
-                return bMatch[1];
-            }
+        if (!match) {
+            console.log(`  ⚠️ No TMDB match found`);
+            return null;
         }
+        
+        // 3. Use Playwright to get the movie page (JS-rendered poster)
+        const { chromium } = require('playwright');
+        const browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
+        
+        await page.goto(`https://www.themoviedb.org${match[1]}`, { 
+            waitUntil: 'domcontentloaded', timeout: 20000 
+        });
+        await page.waitForTimeout(2000);
+        
+        // 4. Extract poster image from the page
+        const posterUrl = await page.evaluate(() => {
+            const poster = document.querySelector('.poster img');
+            if (!poster) return null;
+            
+            let src = poster.getAttribute('src') || poster.getAttribute('data-src');
+            if (!src) return null;
+            
+            // Extract image ID from path (e.g., /vUwyhNWBKkSwK8ELvEeBRwV724h.jpg)
+            const idMatch = src.match(/\/([^\/]+)\.jpg$/);
+            if (!idMatch) return null;
+            
+            const imageId = idMatch[1];
+            // Use image.tmdb.org for original resolution (not media.themoviedb.org which limits to w300)
+            return `https://image.tmdb.org/t/p/original/${imageId}.jpg`;
+        });
+        
+        await browser.close();
+        
+        if (posterUrl) {
+            console.log(`  ✅ Found TMDB poster (original resolution)`);
+            return posterUrl;
+        }
+        
     } catch(e) {
         console.warn(`  ⚠️ TMDB search failed: ${e.message}`);
     }
     return null;
+}
+
+async function getTMDBBanner(title) {
+    // This function is now deprecated - use getTMDBPoster for featured films instead
+    // Keeping for backward compatibility but it returns landscape banners which don't work well
+    return getTMDBPoster(title);
 }
 
 async function fetchImageAndUpload(url, isLandscape, title) {
@@ -700,19 +755,28 @@ async function main() {
     // 5. Add the now showing blocks
     // 6. Keep everything AFTER the now showing section
     
-    // Get the FEATURED FILMS header section (lines 91-98 in template)
-    const featuredSectionHeader = newHtmlStr.substring(f1Start, f2Start);
+    // Build final HTML properly:
+    // 1. Everything BEFORE the FEATURED FILMS section (header + intro)
+    // 2. FEATURED FILMS header section
+    // 3. Built featured film blocks
+    // 4. NOW SHOWING header section  
+    // 5. Built now showing blocks
+    // 6. Everything AFTER now showing (coming soon, etc)
     
-    // Get NOW SHOWING section header (lines 165-173 in template)
+    const featuredSectionHeader = newHtmlStr.substring(f1Start, f2Start);  // FEATURED FILMS header only
     const nsSectionHeader = newHtmlStr.substring(nsStart, newHtmlStr.indexOf("<!-- NOW SHOWING FILM 1"));
     
-    // Build final HTML properly
-    let finalHtml = newHtmlStr.substring(0, f1Start) + 
-                   featuredSectionHeader + 
-                   updatedFeatured.join("") + 
-                   nsSectionHeader + 
-                   updatedNowShowing.join("") + 
-                   newHtmlStr.substring(csStart);
+    // Get content BEFORE featured films (includes header + intro)
+    const beforeFeatured = newHtmlStr.substring(0, f1Start);
+    // Get content AFTER now showing (includes coming soon section)
+    const afterNowShowing = newHtmlStr.substring(csStart);
+    
+    let finalHtml = beforeFeatured + 
+                    featuredSectionHeader + 
+                    updatedFeatured.join("") + 
+                    nsSectionHeader + 
+                    updatedNowShowing.join("") + 
+                    afterNowShowing;
     
     const outputPath = path.join(WORKSPACE_DIR, "final_dynamic_campaign.html");
     fs.writeFileSync(outputPath, finalHtml);

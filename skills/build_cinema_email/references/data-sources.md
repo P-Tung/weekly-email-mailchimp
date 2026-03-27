@@ -17,9 +17,9 @@ This document explains where the script fetches data for the cinema email campai
 │   Sessions    │      │   Website        │      │   (fallback)  │
 │   API         │      │   (fallback)    │      │               │
 └───────────────┘      └─────────────────┘      └───────────────┘
-     - Showtimes        - Posters              - Banner images
+     - Showtimes        - Posters              - Original res posters
      - Session URLs     - Film info            - Hero images
-     - Start dates
+     - Start dates                               - Trailers
 ```
 
 ---
@@ -122,33 +122,51 @@ async function getDeluxeCinemaPoster(title) {
 **Used for:**
 - Fallback poster when Veezi has no poster
 - Higher quality images when available
+- **Trailer extraction** - Use Playwright to scrape YouTube embeds from film pages
 
 ---
 
-## 4. TMDB (Second Fallback)
+## 4. TMDB (Second Fallback) - HIGH RESOLUTION POSTERS
 
 **URL:** `https://www.themoviedb.org/search?query={title}`
 
 **What it provides:**
-- High-resolution movie banners (1920px wide)
-- For featured films (landscape orientation)
+- **Original resolution posters** (not cropped banners)
+- For featured films - use portrait orientation at full resolution
 
-**How it works:**
+### How to get original resolution posters:
+
 ```javascript
-// 1. Search for movie
-const res = await fetch('https://www.themoviedb.org/search?query=I+Swear');
-const match = html.match(/href="(\/movie\/\d+[^"]*)"/);
+// 1. Search TMDB for movie
+const searchRes = await fetch('https://www.themoviedb.org/search?query=I+Swear');
+const html = await searchRes.text();
+const $ = cheerio.load(html);
 
-// 2. Get movie page
-const movieRes = await fetch('https://www.themoviedb.org' + match[1]);
-const movieHtml = await movieRes.text();
+// 2. Find movie link
+const movieLink = $('a[href^="/movie/"]').first().attr('href');
 
-// 3. Extract background banner
-const banner = movieHtml.match(/url\('([^']+w1920[^']+)'\)/);
+// 3. Use Playwright to navigate to movie page (JS-rendered)
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage();
+await page.goto('https://www.themoviedb.org' + movieLink);
+
+// 4. Get poster image ID and construct original URL
+// Image ID: vUwyhNWBKkSwK8ELvEeBRwV724h.jpg
+// Original URL: https://image.tmdb.org/t/p/original/vUwyhNWBKkSwK8ELvEeBRwV724h.jpg
 ```
 
+**Image URL patterns:**
+| Size | URL Pattern |
+|------|-------------|
+| w185 | `https://image.tmdb.org/t/p/w185/{id}.jpg` |
+| w342 | `https://image.tmdb.org/t/p/w342/{id}.jpg` |
+| w500 | `https://image.tmdb.org/t/p/w500/{id}.jpg` |
+| **original** | `https://image.tmdb.org/t/p/original/{id}.jpg` ✅ |
+
+**Important:** Use `image.tmdb.org` (not `media.themoviedb.org`) for original resolution.
+
 **Used for:**
-- Featured film hero images (landscape format)
+- Featured film poster images (portrait, full resolution)
 - When Veezi and Deluxe fail
 
 ---
@@ -168,15 +186,15 @@ const banner = movieHtml.match(/url\('([^']+w1920[^']+)'\)/);
 
 | Section | Dimensions | Aspect Ratio |
 |---------|------------|--------------|
-| Featured Film | 700px wide (resized from 1920) | 2.7:1 (landscape) |
+| Featured Film | 600px wide (resized from original) | ~2:3 (portrait) |
 | Now Showing | 160x240px | 2:3 (portrait) |
 | Header | 600px wide | ~1.5:1 |
 | Promo | 200x130px | 1.5:1 |
 
 The script uses **ImageMagick** to resize images:
 ```bash
-# Featured films (landscape)
-convert input.jpg -resize 700x output.jpg
+# Featured films (portrait, maintain aspect)
+convert input.jpg -resize 600x output.jpg
 
 # Now showing (portrait, exact dimensions)
 convert input.jpg -resize 160x240! output.jpg
