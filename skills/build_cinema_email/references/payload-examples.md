@@ -15,7 +15,7 @@ Used when you want to test the campaign and send a test email.
     "The Devil Wears Prada 2",
     "Caterpillar"
   ],
-  "test_email": "tungphamkindle@gmail.com"
+  "test_email": "user@example.com"
 }
 ```
 

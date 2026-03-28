@@ -32,7 +32,7 @@ cat > campaign_payload.json << 'EOF'
   "dates": "March 26 to March 29",
   "featured_films": ["I Swear", "Midwinter Break"],
   "now_showing": ["Project Hail Mary", "Tenor: My Name is Pati", "The Devil Wears Prada 2"],
-  "test_email": "tungphamkindle@gmail.com"
+  "test_email": "user@example.com"
 }
 EOF
 
@@ -171,7 +171,7 @@ Films to include:
     "The Devil Wears Prada 2",
     "Caterpillar"
   ],
-  "test_email": "tungphamkindle@gmail.com"
+  "test_email": "user@example.com"
 }
 ```
 
@@ -266,7 +266,7 @@ The email has these sections:
     "Mid-Winter Break",
     "Fackham Hall"
   ],
-  "test_email": "tungphamkindle@gmail.com"
+  "test_email": "user@example.com"
 }
 ```
 

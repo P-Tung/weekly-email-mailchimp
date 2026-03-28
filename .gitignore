@@ -54,3 +54,9 @@ service-account*.json
 *secret*
 *.credentials
 auth.json
+
+# ===== Generated Outputs =====
+result/
+final_claude.html
+final_dynamic_campaign.html
+campaign_payload.json
