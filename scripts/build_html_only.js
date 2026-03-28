@@ -55,9 +55,18 @@ async function getMXfilmPoster(title) {
     const token = await getMXfilmToken();
     if (!token) return null;
     try {
-        // 1. Find release by title
+        // 1. Find release by title — exact first, then starts-with fallback
         const releases = await getMXfilmReleases(token);
-        const release = releases.find(r => r.title?.toLowerCase().includes(title.toLowerCase()));
+        const titleLower = title.toLowerCase();
+        let release = releases.find(r => r.title?.toLowerCase() === titleLower);
+        if (!release) {
+            // Allow "I Swear (2025)" to match "I Swear", but not "The North" to match "The Northern Lights"
+            release = releases.find(r => {
+                const rt = r.title?.toLowerCase() || '';
+                return rt.startsWith(titleLower + ' ') || rt.startsWith(titleLower + '(') ||
+                       rt.startsWith(titleLower + ':') || rt === titleLower;
+            });
+        }
         if (!release) { console.log(`  ❌ Not found in MXfilm: ${title}`); return null; }
 
         // 2. Get media items for this release
@@ -88,10 +97,22 @@ async function getTMDBPoster(title) {
     try {
         const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const html = await res.text();
-        const match = html.match(/href="(\/movie\/\d+[^"]*)"/);
-        if (match) {
-            const mRes = await fetch(`https://www.themoviedb.org${match[1]}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        // Extract all movie results with their titles from the search page
+        const resultPattern = /href="(\/movie\/\d+[^"]*)"[^>]*>[\s\S]*?<\/h2>\s*<\/a>[\s\S]*?<\/a>[\s\S]*?([^<]+)<\/h2>/g;
+        const titleLower = title.toLowerCase();
+        // Find the first result whose title actually matches
+        const movieLinks = [...html.matchAll(/data-media-type="movie"[\s\S]*?href="(\/movie\/\d+[^"]*)"/g)].map(m => m[1]);
+        // Fall back to any movie link if no structured match
+        const firstLink = movieLinks[0] || (html.match(/href="(\/movie\/\d+[^"]*)"/)||[])[1];
+        if (firstLink) {
+            const mRes = await fetch(`https://www.themoviedb.org${firstLink}`, { headers: { "User-Agent": "Mozilla/5.0" } });
             const mHtml = await mRes.text();
+            // Validate: og:title must contain our search title
+            const ogTitle = (mHtml.match(/<meta property="og:title" content="([^"]+)"/) || [])[1] || '';
+            if (!ogTitle.toLowerCase().includes(titleLower) && !titleLower.includes(ogTitle.toLowerCase().replace(/ \(\d{4}\)$/, ''))) {
+                console.log(`  ❌ TMDB first result "${ogTitle}" doesn't match "${title}", skipping`);
+                return null;
+            }
             const ogMatch = mHtml.match(/<meta property="og:image" content="([^"]+)"/);
             if (ogMatch) {
                 console.log(`  ✅ Found TMDB portrait poster`);
@@ -170,10 +191,13 @@ async function getDeluxeCinemaPoster(title) {
         console.log(`  ✅ Found poster on Deluxe Cinemas`);
         return posters[titleLower];
     }
-    // Fuzzy match: cached key contains title or title contains cached key
-    const matchKey = Object.keys(posters).find(k =>
-        k.includes(titleLower) || titleLower.includes(k)
-    );
+    // Fuzzy match: only if the shorter string is at least 60% of the longer string's length
+    // This prevents "IT" matching "BITTER" or "The" matching everything
+    const matchKey = Object.keys(posters).find(k => {
+        const longer = k.length >= titleLower.length ? k : titleLower;
+        const shorter = k.length >= titleLower.length ? titleLower : k;
+        return longer.includes(shorter) && shorter.length / longer.length >= 0.6;
+    });
     if (matchKey) {
         console.log(`  ✅ Found poster on Deluxe Cinemas (fuzzy: "${matchKey}")`);
         return posters[matchKey];
