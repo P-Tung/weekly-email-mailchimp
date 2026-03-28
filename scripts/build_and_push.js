@@ -189,7 +189,15 @@ async function fetchAllDeluxePosters() {
         });
         console.log(`  ✅ Cached ${Object.keys(deluxePostersCache).length} Deluxe Cinemas posters`);
     } catch (e) {
-        console.warn(`  ⚠️ Failed to fetch Deluxe Cinemas posters: ${e.message}`);
+        const isMissingBinary = e.message.includes('Executable doesn\'t exist') ||
+                                e.message.includes('playwright install');
+        if (isMissingBinary) {
+            console.warn('  ⚠️ Chromium not installed. Run:');
+            console.warn('     npx playwright install --with-deps chromium');
+            console.warn('  ⚠️ Skipping Deluxe Cinemas posters (will use fallback images).');
+        } else {
+            console.warn(`  ⚠️ Failed to fetch Deluxe Cinemas posters: ${e.message}`);
+        }
         deluxePostersCache = {};
     } finally {
         if (browser) await browser.close();
