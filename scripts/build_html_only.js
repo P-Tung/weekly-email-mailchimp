@@ -38,20 +38,49 @@ async function getMXfilmToken() {
     } catch(e) { return null; }
 }
 
+let mxReleasesCache = null;
+async function getMXfilmReleases(token) {
+    if (mxReleasesCache) return mxReleasesCache;
+    try {
+        const r = await fetch('https://film.moviexchange.com/internal/releases', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        mxReleasesCache = await r.json();
+        return mxReleasesCache;
+    } catch(e) { return []; }
+}
+
 async function getMXfilmPoster(title) {
     console.log(`  🔍 Searching MX Film for poster: ${title}`);
     const token = await getMXfilmToken();
     if (!token) return null;
     try {
-        const res = await fetch(`https://film.moviexchange.com/api/v1/films?title=${encodeURIComponent(title)}`, {
-            headers: { "Authorization": `Bearer ${token}` }
-        });
-        const films = await res.json();
-        const film = films.find(f => f.title?.toLowerCase().includes(title.toLowerCase()));
-        const url = film?.posterUrl || film?.imageUrl || film?.thumbnailUrl || null;
-        if (url) console.log(`  ✅ Found MX Film poster`);
+        // 1. Find release by title
+        const releases = await getMXfilmReleases(token);
+        const release = releases.find(r => r.title?.toLowerCase().includes(title.toLowerCase()));
+        if (!release) { console.log(`  ❌ Not found in MXfilm: ${title}`); return null; }
+
+        // 2. Get media items for this release
+        const mediaRes = await fetch(
+            `https://film.moviexchange.com/internal/media/release/${release.externalId}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const items = await mediaRes.json();
+
+        // 3. Find the default Poster image
+        const poster =
+            items.find(m => m.value?.mediaRole?.code === 'Poster' && m.value?.mediaType === 'Image' && m.value?.isDefault) ||
+            items.find(m => m.value?.mediaRole?.code === 'Poster' && m.value?.mediaType === 'Image');
+        if (!poster?.value) return null;
+
+        // 4. Return previewMedium (337×500, ~38KB) — 2× display size, retina-sharp for email
+        const url = poster.value.previewMedium || poster.value.filePath;
+        if (url) console.log(`  ✅ Found MXfilm poster`);
         return url;
-    } catch(e) { return null; }
+    } catch(e) {
+        console.warn(`  ⚠️ MXfilm poster fetch failed: ${e.message}`);
+        return null;
+    }
 }
 
 async function getTMDBPoster(title) {
@@ -269,13 +298,13 @@ async function resolveImageUrl(veeziUrl, isLandscape, title) {
             console.log(`  ⚠️ [Featured] Falling back to Veezi poster`);
         }
     } else {
-        // Now Showing: Deluxe Cinemas > MX Film > TMDB portrait > fallback image
-        const deluxe = await getDeluxeCinemaPoster(title);
-        if (deluxe) { finalUrl = deluxe; console.log(`  ✅ [Now Showing] Using Deluxe poster`); }
+        // Now Showing: MX Film > Deluxe Cinemas > TMDB portrait > fallback image
+        const mx = await getMXfilmPoster(title);
+        if (mx) { finalUrl = mx; console.log(`  ✅ [Now Showing] Using MX Film poster`); }
 
         if (!finalUrl) {
-            const mx = await getMXfilmPoster(title);
-            if (mx) { finalUrl = mx; console.log(`  ✅ [Now Showing] Using MX Film poster`); }
+            const deluxe = await getDeluxeCinemaPoster(title);
+            if (deluxe) { finalUrl = deluxe; console.log(`  ✅ [Now Showing] Using Deluxe poster`); }
         }
 
         if (!finalUrl) {

@@ -55,17 +55,46 @@ async function getMXfilmTrailer(title) {
     } catch(e) { return null; }
 }
 
+let mxReleasesCache = null;
+async function getMXfilmReleases(token) {
+    if (mxReleasesCache) return mxReleasesCache;
+    try {
+        const r = await fetch('https://film.moviexchange.com/internal/releases', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        mxReleasesCache = await r.json();
+        return mxReleasesCache;
+    } catch(e) { return []; }
+}
+
 async function getMXfilmPoster(title) {
     const token = await getMXfilmToken();
     if (!token) return null;
     try {
-        const res = await fetch(`https://film.moviexchange.com/api/v1/films?title=${encodeURIComponent(title)}`, {
-            headers: { "Authorization": `Bearer ${token}` }
-        });
-        const films = await res.json();
-        const film = films.find(f => f.title?.toLowerCase().includes(title.toLowerCase()));
-        return film?.posterUrl || film?.imageUrl || film?.thumbnailUrl || null;
-    } catch(e) { return null; }
+        // 1. Find release by title
+        const releases = await getMXfilmReleases(token);
+        const release = releases.find(r => r.title?.toLowerCase().includes(title.toLowerCase()));
+        if (!release) return null;
+
+        // 2. Get media items for this release
+        const mediaRes = await fetch(
+            `https://film.moviexchange.com/internal/media/release/${release.externalId}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        const items = await mediaRes.json();
+
+        // 3. Find the default Poster image
+        const poster =
+            items.find(m => m.value?.mediaRole?.code === 'Poster' && m.value?.mediaType === 'Image' && m.value?.isDefault) ||
+            items.find(m => m.value?.mediaRole?.code === 'Poster' && m.value?.mediaType === 'Image');
+        if (!poster?.value) return null;
+
+        // 4. Return previewMedium (337×500, ~38KB) — 2× display size, retina-sharp for email
+        return poster.value.previewMedium || poster.value.filePath || null;
+    } catch(e) {
+        console.warn(`  ⚠️ MXfilm poster fetch failed: ${e.message}`);
+        return null;
+    }
 }
 
 function extractYouTubeId(html) {
@@ -308,28 +337,28 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             console.log(`  ⚠️ [Featured] Using Veezi poster (may be small/upscaled)`);
         }
     } else {
-        // FOR NOW SHOWING FILMS (portrait): Priority is Deluxe Cinemas > MXfilm
+        // FOR NOW SHOWING FILMS (portrait): Priority is MXfilm > Deluxe Cinemas > TMDB
         console.log(`  🔍 [Now Showing] Finding poster image for: ${title}`);
 
-        // 1. Try Deluxe Cinemas first (NZ-specific, region-correct)
-        const deluxePoster = await getDeluxeCinemaPoster(title);
-        if (deluxePoster) {
-            finalUrl = deluxePoster;
-            source = "Deluxe Cinemas";
-            console.log(`  ✅ [Now Showing] Using Deluxe poster`);
+        // 1. Try MXfilm first
+        const mxPoster = await getMXfilmPoster(title);
+        if (mxPoster) {
+            finalUrl = mxPoster;
+            source = "MXfilm";
+            console.log(`  ✅ [Now Showing] Using MXfilm poster`);
         }
 
-        // 2. If Deluxe fails, try MXfilm
+        // 2. If MXfilm fails, try Deluxe Cinemas
         if (!finalUrl) {
-            const mxPoster = await getMXfilmPoster(title);
-            if (mxPoster) {
-                finalUrl = mxPoster;
-                source = "MXfilm";
-                console.log(`  ✅ [Now Showing] Using MXfilm poster`);
+            const deluxePoster = await getDeluxeCinemaPoster(title);
+            if (deluxePoster) {
+                finalUrl = deluxePoster;
+                source = "Deluxe Cinemas";
+                console.log(`  ✅ [Now Showing] Using Deluxe poster`);
             }
         }
 
-        // 3. If MXfilm fails, try TMDB portrait poster
+        // 3. If Deluxe fails, try TMDB portrait poster
         if (!finalUrl) {
             const tmdbPoster = await getTMDBPoster(title);
             if (tmdbPoster) {
