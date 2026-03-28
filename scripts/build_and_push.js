@@ -175,9 +175,14 @@ async function fetchAllDeluxePosters() {
         const page = await browser.newPage();
         await page.goto('https://www.deluxecinemas.co.nz/', { waitUntil: 'networkidle', timeout: 30000 });
 
+        // Scroll to the bottom to trigger IntersectionObserver lazy loading for off-screen posters
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(2000); // wait for lazy-loaded images to settle
+
         const posters = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('img.movie-poster')).map(img => ({
-                src: img.src,
+                // data-src holds the real URL before lazy loading swaps it into src
+                src: img.dataset.src || img.dataset.lazySrc || img.currentSrc || img.src,
                 alt: img.alt
             }));
         });
@@ -185,7 +190,10 @@ async function fetchAllDeluxePosters() {
         deluxePostersCache = {};
         posters.forEach(p => {
             const title = p.alt.replace(/^Movie poster for /i, '').trim().toLowerCase();
-            if (title && !deluxePostersCache[title]) deluxePostersCache[title] = p.src;
+            // Only store real HTTP URLs; skip placeholder data: URIs or empty strings
+            if (title && p.src && p.src.startsWith('http') && !deluxePostersCache[title]) {
+                deluxePostersCache[title] = p.src;
+            }
         });
         console.log(`  ✅ Cached ${Object.keys(deluxePostersCache).length} Deluxe Cinemas posters`);
     } catch (e) {
