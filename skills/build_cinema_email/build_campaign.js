@@ -80,6 +80,85 @@ async function getMXfilmPoster(title) {
     } catch(e) { return null; }
 }
 
+async function getMXfilmPosterBrowser(title) {
+    console.log(`  🌐 [MXfilm Browser] Searching for poster: ${title}`);
+    const creds = await getMXfilmCredentials();
+    const { chromium } = require('playwright');
+    let browser;
+    try {
+        browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
+        await page.setExtraHTTPHeaders({ "User-Agent": "Mozilla/5.0" });
+
+        // Step 1: Navigate and login if credentials exist
+        await page.goto('https://film.moviexchange.com', { waitUntil: 'networkidle', timeout: 30000 });
+
+        if (creds) {
+            // Try login form if visible
+            const usernameInput = page.locator('input[type="email"], input[name="username"], input[name="email"]').first();
+            if (await usernameInput.isVisible().catch(() => false)) {
+                await usernameInput.fill(creds.username);
+                await page.locator('input[type="password"]').first().fill(creds.password);
+                await page.locator('button[type="submit"], input[type="submit"]').first().click();
+                await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+            }
+        }
+
+        // Step 2: Search for film
+        const searchInput = page.locator('input[type="search"], input[placeholder*="search" i], input[name="query"]').first();
+        if (await searchInput.isVisible().catch(() => false)) {
+            await searchInput.fill(title);
+            await page.keyboard.press('Enter');
+            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        } else {
+            // Try URL-based search
+            await page.goto(`https://film.moviexchange.com/films?query=${encodeURIComponent(title)}`,
+                { waitUntil: 'networkidle', timeout: 20000 });
+        }
+
+        // Step 3: Click first matching film result
+        const filmLink = page.locator(`a[href*="/film"], a[href*="/movie"]`).first();
+        if (await filmLink.isVisible().catch(() => false)) {
+            await filmLink.click();
+            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        }
+
+        // Step 4: Extract poster - prefer large images
+        const posterUrl = await page.evaluate(() => {
+            // Try og:image meta first (usually highest res)
+            const ogImage = document.querySelector('meta[property="og:image"]');
+            if (ogImage?.content && ogImage.content.startsWith('http')) return ogImage.content;
+
+            // Try poster-specific img elements
+            const selectors = [
+                'img.poster', 'img[class*="poster"]', 'img[alt*="poster" i]',
+                '.film-poster img', '.movie-poster img', '.poster-container img',
+                'img[src*="poster"]', 'img[src*="artwork"]'
+            ];
+            for (const sel of selectors) {
+                const img = document.querySelector(sel);
+                const src = img?.src || img?.dataset?.src;
+                if (src && src.startsWith('http')) return src;
+            }
+            // Fallback: largest img on page by naturalWidth
+            const imgs = Array.from(document.querySelectorAll('img'))
+                .filter(i => i.src?.startsWith('http') && i.naturalWidth > 300);
+            imgs.sort((a, b) => b.naturalWidth - a.naturalWidth);
+            return imgs[0]?.src || null;
+        });
+
+        if (posterUrl) {
+            console.log(`  ✅ [MXfilm Browser] Found poster: ${posterUrl.substring(0, 80)}...`);
+        }
+        return posterUrl;
+    } catch (e) {
+        console.warn(`  ⚠️ [MXfilm Browser] Failed: ${e.message}`);
+        return null;
+    } finally {
+        if (browser) await browser.close();
+    }
+}
+
 async function getDeluxeTrailer(title) {
     console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
     try {
@@ -367,32 +446,38 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             console.log(`  ⚠️ [Featured] Using Veezi poster (may be small/upscaled)`);
         }
     } else {
-        // FOR NOW SHOWING FILMS (portrait): Priority is MXfilm > Deluxe > Veezi
+        // FOR NOW SHOWING FILMS: Priority is MXfilm (browser) > TMDB > Deluxe > Veezi
         console.log(`  🔍 [Now Showing] Finding poster image for: ${title}`);
-        
-        // 1. Try MXfilm first (highest quality posters - typically 800px+)
-        const mxPoster = await getMXfilmPoster(title);
+
+        // 1. Try MXfilm via headless browser (1000+ px quality)
+        const mxPoster = await getMXfilmPosterBrowser(title);
         if (mxPoster) {
             finalUrl = mxPoster;
-            source = "MXfilm (highest quality)";
-            console.log(`  ✅ [Now Showing] Using MXfilm poster`);
+            source = "MXfilm Browser (high quality)";
         }
-        
-        // 2. If MXfilm fails, try Deluxe Cinemas
+
+        // 2. Try TMDB (original resolution - typically 2000x3000)
+        if (!finalUrl) {
+            const tmdbPoster = await getTMDBPoster(title);
+            if (tmdbPoster) {
+                finalUrl = tmdbPoster;
+                source = "TMDB (original resolution)";
+            }
+        }
+
+        // 3. Try Deluxe Cinemas (Cheerio scrape - lower quality fallback)
         if (!finalUrl) {
             const deluxePoster = await getDeluxeCinemaPoster(title);
             if (deluxePoster) {
                 finalUrl = deluxePoster;
                 source = "Deluxe Cinemas";
-                console.log(`  ✅ [Now Showing] Using Deluxe poster`);
             }
         }
-        
-        // 3. Last resort: use Veezi poster
-        if (!finalUrl && url && url.startsWith('http')) {
+
+        // 4. Last resort: Veezi
+        if (!finalUrl && url?.startsWith('http')) {
             finalUrl = url;
             source = "Veezi (fallback)";
-            console.log(`  ⚠️ [Now Showing] Using Veezi poster (fallback)`);
         }
     }
 
@@ -448,7 +533,7 @@ async function fetchImageAndUpload(url, isLandscape, title) {
         if (isLandscape) {
             execSync(`convert "${tempIn}" -resize 700x "${tempOut}"`);
         } else {
-            execSync(`convert "${tempIn}" -resize 160x240! "${tempOut}"`);
+            execSync(`convert "${tempIn}" -resize 600x900 "${tempOut}"`);
         }
         const resizedBuffer = fs.readFileSync(tempOut);
         const cdn = await uploadImage(resizedBuffer, path.basename(tempOut));
