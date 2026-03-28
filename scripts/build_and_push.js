@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
 const { execSync } = require('child_process');
+const { chromium } = require('playwright');
 
 const MC_API_KEY = process.env.MATON_API_KEY;
 if (!MC_API_KEY) {
@@ -159,36 +160,58 @@ async function uploadImage(buffer, filename) {
     return data.full_size_url;
 }
 
+let deluxePostersCache = null;
+let deluxeBrowserLaunched = false;
+
+async function fetchAllDeluxePosters() {
+    if (deluxePostersCache) return deluxePostersCache;
+    let browser;
+    try {
+        if (!deluxeBrowserLaunched) {
+            console.log('  🌐 Launching browser to scrape Deluxe Cinemas posters...');
+            deluxeBrowserLaunched = true;
+        }
+        browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
+        await page.goto('https://www.deluxecinemas.co.nz/', { waitUntil: 'networkidle', timeout: 30000 });
+
+        const posters = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('img.movie-poster')).map(img => ({
+                src: img.src,
+                alt: img.alt
+            }));
+        });
+
+        deluxePostersCache = {};
+        posters.forEach(p => {
+            const title = p.alt.replace(/^Movie poster for /i, '').trim().toLowerCase();
+            if (title && !deluxePostersCache[title]) deluxePostersCache[title] = p.src;
+        });
+        console.log(`  ✅ Cached ${Object.keys(deluxePostersCache).length} Deluxe Cinemas posters`);
+    } catch (e) {
+        console.warn(`  ⚠️ Failed to fetch Deluxe Cinemas posters: ${e.message}`);
+        deluxePostersCache = {};
+    } finally {
+        if (browser) await browser.close();
+    }
+    return deluxePostersCache;
+}
+
 async function getDeluxeCinemaPoster(title) {
     console.log(`  🔍 Searching deluxecinemas.co.nz for poster: ${title}`);
-    try {
-        const res = await fetch(`https://www.deluxecinemas.co.nz/`, { 
-            headers: { "User-Agent": "Mozilla/5.0" } 
-        });
-        const html = await res.text();
-        const $ = cheerio.load(html);
-        
-        const filmLink = $(`a:contains("${title}")`).first();
-        if (filmLink.length) {
-            const href = filmLink.attr('href');
-            if (href) {
-                const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { 
-                    headers: { "User-Agent": "Mozilla/5.0" } 
-                });
-                const filmHtml = await filmRes.text();
-                const $f = cheerio.load(filmHtml);
-                
-                const poster = $f('.film-poster img, .poster img, img[alt*="poster"]').first();
-                const posterSrc = poster.attr('src') || poster.attr('data-src');
-                if (posterSrc) {
-                    const fullUrl = posterSrc.startsWith('http') ? posterSrc : `https://www.deluxecinemas.co.nz${posterSrc}`;
-                    console.log(`  ✅ Found poster on Deluxe Cinemas: ${fullUrl}`);
-                    return fullUrl;
-                }
-            }
-        }
-    } catch(e) {
-        console.warn(`  ⚠️ Failed to fetch from Deluxe Cinemas: ${e.message}`);
+    const posters = await fetchAllDeluxePosters();
+    const titleLower = title.toLowerCase();
+
+    if (posters[titleLower]) {
+        console.log(`  ✅ Found poster on Deluxe Cinemas`);
+        return posters[titleLower];
+    }
+    const matchKey = Object.keys(posters).find(k =>
+        k.includes(titleLower) || titleLower.includes(k)
+    );
+    if (matchKey) {
+        console.log(`  ✅ Found poster on Deluxe Cinemas (fuzzy: "${matchKey}")`);
+        return posters[matchKey];
     }
     return null;
 }
@@ -210,6 +233,27 @@ async function getTMDBBanner(title) {
         }
     } catch(e) {
         console.warn(`  ⚠️ TMDB search failed: ${e.message}`);
+    }
+    return null;
+}
+
+async function getTMDBPoster(title) {
+    console.log(`  🔍 Searching TMDB for portrait poster: ${title}`);
+    try {
+        const res = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const html = await res.text();
+        const match = html.match(/href="(\/movie\/\d+[^"]*)"/);
+        if (match) {
+            const mRes = await fetch(`https://www.themoviedb.org${match[1]}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const mHtml = await mRes.text();
+            const ogMatch = mHtml.match(/<meta property="og:image" content="([^"]+)"/);
+            if (ogMatch) {
+                console.log(`  ✅ Found TMDB portrait poster`);
+                return ogMatch[1];
+            }
+        }
+    } catch(e) {
+        console.warn(`  ⚠️ TMDB poster search failed: ${e.message}`);
     }
     return null;
 }
@@ -248,32 +292,35 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             console.log(`  ⚠️ [Featured] Using Veezi poster (may be small/upscaled)`);
         }
     } else {
-        // FOR NOW SHOWING FILMS (portrait): Priority is MXfilm > Deluxe > Veezi
+        // FOR NOW SHOWING FILMS (portrait): Priority is Deluxe Cinemas > MXfilm
         console.log(`  🔍 [Now Showing] Finding poster image for: ${title}`);
-        
-        // 1. Try MXfilm first (highest quality posters - typically 800px+)
-        const mxPoster = await getMXfilmPoster(title);
-        if (mxPoster) {
-            finalUrl = mxPoster;
-            source = "MXfilm (highest quality)";
-            console.log(`  ✅ [Now Showing] Using MXfilm poster`);
+
+        // 1. Try Deluxe Cinemas first (NZ-specific, region-correct)
+        const deluxePoster = await getDeluxeCinemaPoster(title);
+        if (deluxePoster) {
+            finalUrl = deluxePoster;
+            source = "Deluxe Cinemas";
+            console.log(`  ✅ [Now Showing] Using Deluxe poster`);
         }
-        
-        // 2. If MXfilm fails, try Deluxe Cinemas
+
+        // 2. If Deluxe fails, try MXfilm
         if (!finalUrl) {
-            const deluxePoster = await getDeluxeCinemaPoster(title);
-            if (deluxePoster) {
-                finalUrl = deluxePoster;
-                source = "Deluxe Cinemas";
-                console.log(`  ✅ [Now Showing] Using Deluxe poster`);
+            const mxPoster = await getMXfilmPoster(title);
+            if (mxPoster) {
+                finalUrl = mxPoster;
+                source = "MXfilm";
+                console.log(`  ✅ [Now Showing] Using MXfilm poster`);
             }
         }
-        
-        // 3. Last resort: use Veezi poster
-        if (!finalUrl && url && url.startsWith('http')) {
-            finalUrl = url;
-            source = "Veezi (fallback)";
-            console.log(`  ⚠️ [Now Showing] Using Veezi poster (fallback)`);
+
+        // 3. If MXfilm fails, try TMDB portrait poster
+        if (!finalUrl) {
+            const tmdbPoster = await getTMDBPoster(title);
+            if (tmdbPoster) {
+                finalUrl = tmdbPoster;
+                source = "TMDB portrait";
+                console.log(`  ✅ [Now Showing] Using TMDB portrait poster`);
+            }
         }
     }
 
@@ -300,11 +347,12 @@ async function fetchImageAndUpload(url, isLandscape, title) {
             // For featured films, try Veezi as last resort
             fallbackUrl = url;
             console.log(`  🔄 [Featured] Retry with Veezi fallback...`);
-        } else if (!isLandscape && source !== "Veezi") {
-            // For now showing, try Veezi as fallback
-            if (url && url.startsWith('http')) {
-                fallbackUrl = url;
-                console.log(`  🔄 [Now Showing] Retry with Veezi fallback...`);
+        } else if (!isLandscape && source !== "TMDB portrait") {
+            // For now showing, try TMDB portrait as last retry
+            const tmdbRetry = await getTMDBPoster(title);
+            if (tmdbRetry) {
+                fallbackUrl = tmdbRetry;
+                console.log(`  🔄 [Now Showing] Retry with TMDB portrait fallback...`);
             }
         }
         
