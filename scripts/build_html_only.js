@@ -462,14 +462,18 @@ async function getVeeziMetadata() {
 
 function formatDate(iso) {
     const d = new Date(iso);
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    let hours = d.getHours();
-    let mins = d.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12;
-    mins = mins < 10 ? '0' + mins : mins;
-    return `${days[d.getDay()]} ${d.getDate()}, ${months[d.getMonth()]}: ${hours}:${mins} ${ampm}`;
+    const parts = new Intl.DateTimeFormat('en-NZ', {
+        timeZone: 'Pacific/Auckland',
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    }).formatToParts(d);
+    const get = type => parts.find(p => p.type === type)?.value ?? '';
+    const time = `${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
+    return `${get('weekday')} ${get('day')}, ${get('month')}: ${time}`;
 }
 
 // ---------- Intro HTML ----------
