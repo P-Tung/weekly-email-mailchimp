@@ -57,6 +57,6 @@ auth.json
 
 # ===== Generated Outputs =====
 result/
-final_claude.html
+# final_claude.html
 final_dynamic_campaign.html
 campaign_payload.json

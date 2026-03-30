@@ -123,28 +123,53 @@ function extractYouTubeId(html) {
     return null;
 }
 
+function normalizeTitleForMatch(t) {
+    return t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function titleMatchesOgTitle(searchTitle, ogTitle) {
+    if (!ogTitle) return false;
+    const search = normalizeTitleForMatch(searchTitle);
+    const og = normalizeTitleForMatch(ogTitle.replace(/\s*\(\d{4}\)\s*$/, ''));
+    if (og === search) return true;
+    if (og.startsWith(search)) return true;
+    if (search.startsWith(og) && og.length >= search.length - 5) return true;
+    return false;
+}
+
 async function getTMDBTrailer(title) {
     console.log(`  🔍 Searching TMDB for YouTube trailer: ${title}`);
     try {
         const searchRes = await fetch(`https://www.themoviedb.org/search?query=${encodeURIComponent(title)}`, { headers: { "User-Agent": "Mozilla/5.0" } });
         const searchHtml = await searchRes.text();
-        const movieMatch = searchHtml.match(/href="\/movie\/(\d+)(-[^"]*)?"/);
-        if (!movieMatch) return null;
-        const movieId = movieMatch[1];
 
-        // Fetch the movie page — TMDB embeds data-site="YouTube" data-id="VIDEO_ID" in the initial HTML
-        const movieRes = await fetch(`https://www.themoviedb.org/movie/${movieId}`, { headers: { "User-Agent": "Mozilla/5.0" } });
-        const movieHtml = await movieRes.text();
+        const allMovieMatches = [...searchHtml.matchAll(/href="\/movie\/(\d+)(-[^"]*)?"/g)];
+        if (allMovieMatches.length === 0) return null;
 
-        // Primary: look for YouTube play_trailer link with data-site + data-id
-        const ytSiteMatch = movieHtml.match(/data-site="YouTube"[^>]*data-id="([a-zA-Z0-9_-]{11})"/);
-        const ytIdMatch = movieHtml.match(/data-id="([a-zA-Z0-9_-]{11})"[^>]*data-site="YouTube"/);
-        const ytId = (ytSiteMatch && ytSiteMatch[1]) || (ytIdMatch && ytIdMatch[1]) || extractYouTubeId(movieHtml);
+        for (const m of allMovieMatches.slice(0, 5)) {
+            const movieId = m[1];
+            const movieRes = await fetch(`https://www.themoviedb.org/movie/${movieId}`, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const movieHtml = await movieRes.text();
 
-        if (ytId) {
-            const ytUrl = `https://www.youtube.com/watch?v=${ytId}`;
-            console.log(`  ✅ Found TMDB YouTube trailer: ${ytUrl}`);
-            return ytUrl;
+            const ogTitleMatch = movieHtml.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)
+                              || movieHtml.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:title"/i);
+            const ogTitle = ogTitleMatch ? ogTitleMatch[1] : null;
+
+            if (!titleMatchesOgTitle(title, ogTitle)) {
+                console.warn(`  ⚠️ TMDB result mismatch: searched "${title}", got og:title "${ogTitle}" — skipping`);
+                continue;
+            }
+
+            const ytSiteMatch = movieHtml.match(/data-site="YouTube"[^>]*data-id="([a-zA-Z0-9_-]{11})"/);
+            const ytIdMatch = movieHtml.match(/data-id="([a-zA-Z0-9_-]{11})"[^>]*data-site="YouTube"/);
+            const ytId = (ytSiteMatch && ytSiteMatch[1]) || (ytIdMatch && ytIdMatch[1]) || extractYouTubeId(movieHtml);
+
+            if (ytId) {
+                const ytUrl = `https://www.youtube.com/watch?v=${ytId}`;
+                console.log(`  ✅ Found TMDB YouTube trailer: ${ytUrl}`);
+                return ytUrl;
+            }
+            break;
         }
     } catch(e) {
         console.warn(`  ⚠️ TMDB trailer search failed: ${e.message}`);
@@ -152,31 +177,77 @@ async function getTMDBTrailer(title) {
     return null;
 }
 
-async function getDeluxeTrailer(title) {
-    console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
+let deluxeFilmUrlsCache = null;
+
+async function fetchDeluxeFilmUrls() {
+    if (deluxeFilmUrlsCache) return deluxeFilmUrlsCache;
+    deluxeFilmUrlsCache = {};
+    let browser;
     try {
-        const res = await fetch(`https://www.deluxecinemas.co.nz/`, { headers: { "User-Agent": "Mozilla/5.0" } });
-        const html = await res.text();
-        const $ = cheerio.load(html);
+        browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
 
-        const filmLink = $(`a:contains("${title}")`).first();
-        if (filmLink.length) {
-            const href = filmLink.attr('href');
-            if (href) {
-                const filmRes = await fetch(`https://www.deluxecinemas.co.nz${href}`, { headers: { "User-Agent": "Mozilla/5.0" } });
-                const filmHtml = await filmRes.text();
-
-                // First: look for any YouTube video ID embedded in the page
-                const ytId = extractYouTubeId(filmHtml);
-                if (ytId) {
-                    const ytUrl = `https://www.youtube.com/watch?v=${ytId}`;
-                    console.log(`  ✅ Found YouTube trailer on Deluxe Cinemas: ${ytUrl}`);
-                    return ytUrl;
-                }
+        for (const pageUrl of ['https://www.deluxecinemas.co.nz/', 'https://www.deluxecinemas.co.nz/coming-soon']) {
+            await page.goto(pageUrl, { waitUntil: 'networkidle', timeout: 30000 });
+            const links = await page.evaluate(() =>
+                Array.from(document.querySelectorAll('a[href*="/movie/"]')).map(el => ({
+                    text: el.textContent.trim(),
+                    href: el.href
+                }))
+            );
+            for (const { text, href } of links) {
+                if (!href || !text) continue;
+                const titleLine = text.split('\n')[0].trim();
+                if (titleLine) deluxeFilmUrlsCache[titleLine.toLowerCase()] = href;
             }
         }
+        console.log(`  ✅ Cached ${Object.keys(deluxeFilmUrlsCache).length} Deluxe film URLs`);
+    } catch (e) {
+        console.warn(`  ⚠️ Failed to fetch Deluxe film URLs: ${e.message}`);
+    } finally {
+        if (browser) await browser.close();
+    }
+    return deluxeFilmUrlsCache;
+}
+
+async function getDeluxeTrailer(title) {
+    console.log(`  🔍 Searching deluxecinemas.co.nz for trailer: ${title}`);
+    let browser;
+    try {
+        const filmUrls = await fetchDeluxeFilmUrls();
+        const titleLower = title.toLowerCase();
+
+        let filmUrl = filmUrls[titleLower];
+        if (!filmUrl) {
+            const key = Object.keys(filmUrls).find(k => k.startsWith(titleLower) || titleLower.startsWith(k));
+            if (key) filmUrl = filmUrls[key];
+        }
+        if (!filmUrl) return null;
+
+        browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
+        await page.goto(filmUrl, { waitUntil: 'networkidle', timeout: 30000 });
+
+        const iframeSrc = await page.evaluate(() => {
+            const iframe = document.querySelector('iframe[src*="youtube.com/embed/"]');
+            return iframe ? iframe.src : null;
+        });
+
+        if (iframeSrc) {
+            const ytIdMatch = iframeSrc.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+            if (ytIdMatch) {
+                const ytUrl = `https://www.youtube.com/watch?v=${ytIdMatch[1]}`;
+                console.log(`  ✅ Found YouTube trailer on Deluxe Cinemas: ${ytUrl}`);
+                return ytUrl;
+            }
+        }
+
+        console.log(`  ℹ️ No YouTube trailer found on Deluxe film page, skipping`);
+        return null;
     } catch(e) {
         console.warn(`  ⚠️ Failed to fetch trailer from Deluxe Cinemas: ${e.message}`);
+    } finally {
+        if (browser) await browser.close();
     }
     return null;
 }
@@ -670,31 +741,31 @@ async function main() {
         console.log(`   🖼️ Fetching and uploading poster...`);
         let cdnUrl = await fetchImageAndUpload(meta.posterUrl, isFeatured, meta.title);
 
-        // Fetch trailer URL - MXfilm > TMDB > Deluxe > fallback
+        // Fetch trailer URL - Deluxe > MXfilm > TMDB > fallback
         console.log(`   🎬 Fetching trailer link...`);
         let trailerUrl = null;
 
-        // 1. Try MXfilm API first
-        const mxTrailer = await getMXfilmTrailer(filmTitle);
-        if (mxTrailer) {
-            trailerUrl = mxTrailer;
-            console.log(`   ✅ Found trailer from MXfilm API`);
+        // 1. Try Deluxe Cinemas first for embedded YouTube link
+        trailerUrl = await getDeluxeTrailer(filmTitle);
+
+        // 2. Try MXfilm API
+        if (!trailerUrl) {
+            const mxTrailer = await getMXfilmTrailer(filmTitle);
+            if (mxTrailer) {
+                trailerUrl = mxTrailer;
+                console.log(`   ✅ Found trailer from MXfilm API`);
+            }
         }
 
-        // 2. Try TMDB for YouTube link
+        // 3. Try TMDB for YouTube link
         if (!trailerUrl) {
             trailerUrl = await getTMDBTrailer(filmTitle);
         }
 
-        // 3. Try Deluxe Cinemas page for embedded YouTube link
+        // 4. Default to YouTube search if no trailer found
         if (!trailerUrl) {
-            trailerUrl = await getDeluxeTrailer(filmTitle);
-        }
-
-        // 4. Default to Deluxe homepage if no trailer found
-        if (!trailerUrl) {
-            trailerUrl = "https://deluxecinemas.co.nz/";
-            console.log(`   ⚠️ No trailer found, using default link`);
+            trailerUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(filmTitle + ' trailer')}`;
+            console.log(`   ⚠️ No trailer found, using YouTube search fallback`);
         }
 
         const $b = cheerio.load(baseTemplate, null, false);
